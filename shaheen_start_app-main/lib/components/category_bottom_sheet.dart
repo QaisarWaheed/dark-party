@@ -33,19 +33,23 @@ class CategoryBottomSheet extends StatefulWidget {
   State<CategoryBottomSheet> createState() => _CategoryBottomSheetState();
 }
 
-class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerProviderStateMixin {
+class _CategoryBottomSheetState extends State<CategoryBottomSheet>
+    with TickerProviderStateMixin {
   int selectedCategoryIndex = 0; // Start with first API category selected
   late AnimationController _animationController;
   double _goldCoins = 0.0;
   bool _isLoadingBalance = false;
-  final Set<int> _selectedReceiverIds = {}; // Track multiple selected receivers (always allow multiple)
+  final Set<int> _selectedReceiverIds =
+      {}; // Track multiple selected receivers (always allow multiple)
   GiftProvider? _giftProvider; // Store provider reference for listener
 
   // Dynamic categories from API - will be populated after gifts are fetched
   List<Map<String, dynamic>> mainCategories = [];
 
   /// Build categories dynamically from API gifts
-  List<Map<String, dynamic>> _buildCategoriesFromAPI(List<String> apiCategories) {
+  List<Map<String, dynamic>> _buildCategoriesFromAPI(
+    List<String> apiCategories,
+  ) {
     final categories = <Map<String, dynamic>>[];
     print("~~~~~~~~~~~~~~~~Categories~~~~~~~~~~~~~~~~~~~~~~~");
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -67,7 +71,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
     print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     print(categories);
-    
+
     return categories;
   }
 
@@ -91,8 +95,8 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
         return 'Unique';
       default:
         // Capitalize first letter and return
-        return category.isEmpty 
-            ? category 
+        return category.isEmpty
+            ? category
             : category[0].toUpperCase() + category.substring(1).toLowerCase();
     }
   }
@@ -128,7 +132,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
       duration: const Duration(milliseconds: 300),
     );
     _animationController.forward();
-    
+
     // Initialize selected receiver with widget receiverId
     if (widget.receiverId != null) {
       _selectedReceiverIds.add(widget.receiverId!);
@@ -138,21 +142,21 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
       _loadGoldCoinsBalance();
       final giftProvider = Provider.of<GiftProvider>(context, listen: false);
 
-    
       _giftProvider = giftProvider;
-      
+
       // ✅ Fetch gifts via WebSocket when bottom sheet opens
       print("🎁 [CategoryBottomSheet] Requesting gifts via WebSocket...");
       giftProvider.fetchAllGifts().then((_) {
-        print("~~~~~~~~~~~~~~~~~~~~~~~~Fetch Gifts~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        for( int i=0; i<giftProvider.allGifts.length;i++){
-        print(giftProvider.allGifts[i].category);
-
+        print(
+          "~~~~~~~~~~~~~~~~~~~~~~~~Fetch Gifts~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+        );
+        for (int i = 0; i < giftProvider.allGifts.length; i++) {
+          print(giftProvider.allGifts[i].category);
         }
         // After gifts are fetched, build categories from API
         _updateCategoriesFromAPI(giftProvider);
       });
-      
+
       // Do NOT set initial category here; we'll set it after categories are built
     });
   }
@@ -162,12 +166,16 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     if (mounted) {
       setState(() {
         final apiCategories = giftProvider.availableCategories;
-        print("📋 [CategoryBottomSheet] Available categories from API: $apiCategories");
+        print(
+          "📋 [CategoryBottomSheet] Available categories from API: $apiCategories",
+        );
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-    print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    print(apiCategories);
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        print(apiCategories);
         mainCategories = _buildCategoriesFromAPI(apiCategories);
-        print("📋 [CategoryBottomSheet] Built ${mainCategories.length} navigation tabs");
+        print(
+          "📋 [CategoryBottomSheet] Built ${mainCategories.length} navigation tabs",
+        );
 
         // Set initial selected category to the first API category (if available)
         if (mainCategories.isNotEmpty) {
@@ -186,7 +194,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Handle user_id as both int and String (it can be stored either way)
       String userId = '';
       if (prefs.containsKey('user_id')) {
@@ -197,7 +205,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
           userId = userIdValue;
         }
       }
-      
+
       if (userId.isEmpty) {
         _goldCoins = 0.0;
         setState(() {
@@ -209,22 +217,22 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
       // ✅ Fetch balance directly from WebSocket (no cached fallback)
       print("💰 [CategoryBottomSheet] Fetching user balance via WebSocket...");
       _giftProvider = Provider.of<GiftProvider>(context, listen: false);
-      
+
       // ✅ Listen for balance updates from WebSocket
       if (_giftProvider != null) {
         _giftProvider!.addListener(_updateBalanceFromProvider);
       }
-      
+
       // Wait for WebSocket balance response
       await _giftProvider!.fetchUserBalance();
-      
+
       // ✅ Use WebSocket balance data only (always use WebSocket value, even if 0)
       final websocketBalance = _giftProvider!.userBalance;
       _goldCoins = websocketBalance;
       print("✅ [CategoryBottomSheet] Using WebSocket balance: $_goldCoins");
-      
+
       _giftProvider!.setUserBalance(_goldCoins);
-      
+
       if (mounted) {
         setState(() {
           _isLoadingBalance = false;
@@ -247,7 +255,9 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
       if (newBalance != _goldCoins && mounted) {
         setState(() {
           _goldCoins = newBalance;
-          print("✅ [CategoryBottomSheet] Balance updated from WebSocket: $_goldCoins");
+          print(
+            "✅ [CategoryBottomSheet] Balance updated from WebSocket: $_goldCoins",
+          );
         });
       }
     }
@@ -272,7 +282,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-           Color.fromARGB(255, 172, 155, 57), 
+            Color.fromARGB(255, 172, 155, 57),
             const Color(0xFF1A0B2E), // Darker purple
             Colors.grey[900]!,
           ],
@@ -302,56 +312,56 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
             ),
           ),
 
- 
           // Main Category Navigation Tabs
           _buildNavigationTabs(),
 
           const SizedBox(height: 5),
-        
-      
+
           // ✅ Users List - Show when gift is selected (if no receiver pre-selected)
           Consumer<GiftProvider>(
             builder: (context, giftProvider, child) {
-              final shouldShowUserList = giftProvider.selectedGift != null && 
-                                        widget.receiverId == null;
-//               return  GestureDetector(child:Text("ccec"),onTap: (){
-                
-// //                 int normal=0,lucky=0,tiktok=0,vip=0;
-//                 for(int i=0;i<giftProvider.value.length;i++){
-//                   print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-//                      print(giftProvider.value[i].category);
-//                       print(giftProvider.value[i].name);
-//                        print(giftProvider.value[i].description);
-//                   print(giftProvider.value[i].image);
-//                      print(giftProvider.value[i].animationFile);
-//                 }
-// //                   if(giftProvider.value[i].category=="normal"){
-// // normal+=1;
-// //                   }else if(giftProvider.value[i].category=="lucky"){
-// // lucky+=1;
-// //                   }
-// //                   else if(giftProvider.value[i].category=="tiktok"){
-// //                     tiktok+=1;
-// //                   }
-// //                   else if(giftProvider.value[i].category=="vip"){
-// //                     vip+=1;
-// //                   }
-              
-                
-                             
-// //                 }
-// //                   print("Normal"+ normal.toString());
-// //                   print("Lucky"+lucky.toString());
-// //                   print("Tiktok"+tiktok.toString());
-// //                   print("Vip"+vip.toString());
-        
-//          },);
+              final shouldShowUserList =
+                  giftProvider.selectedGift != null &&
+                  widget.receiverId == null;
+              //               return  GestureDetector(child:Text("ccec"),onTap: (){
+
+              // //                 int normal=0,lucky=0,tiktok=0,vip=0;
+              //                 for(int i=0;i<giftProvider.value.length;i++){
+              //                   print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+              //                      print(giftProvider.value[i].category);
+              //                       print(giftProvider.value[i].name);
+              //                        print(giftProvider.value[i].description);
+              //                   print(giftProvider.value[i].image);
+              //                      print(giftProvider.value[i].animationFile);
+              //                 }
+              // //                   if(giftProvider.value[i].category=="normal"){
+              // // normal+=1;
+              // //                   }else if(giftProvider.value[i].category=="lucky"){
+              // // lucky+=1;
+              // //                   }
+              // //                   else if(giftProvider.value[i].category=="tiktok"){
+              // //                     tiktok+=1;
+              // //                   }
+              // //                   else if(giftProvider.value[i].category=="vip"){
+              // //                     vip+=1;
+              // //                   }
+
+              // //                 }
+              // //                   print("Normal"+ normal.toString());
+              // //                   print("Lucky"+lucky.toString());
+              // //                   print("Tiktok"+tiktok.toString());
+              // //                   print("Vip"+vip.toString());
+
+              //          },);
               if (shouldShowUserList) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -369,45 +379,66 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
                               maxLines: 1,
                             ),
                           ),
-                          
+
                           const SizedBox(width: 8),
 
                           // ✅ "Select All" Button
                           GestureDetector(
                             onTap: () {
-                              final seatProvider = Provider.of<SeatProvider>(context, listen: false);
+                              final seatProvider = Provider.of<SeatProvider>(
+                                context,
+                                listen: false,
+                              );
                               final allUserIds = seatProvider.seats
-                                  .where((seat) => seat.isOccupied && seat.userId != null)
+                                  .where(
+                                    (seat) =>
+                                        seat.isOccupied && seat.userId != null,
+                                  )
                                   .map((seat) => int.tryParse(seat.userId!))
                                   .where((id) => id != null)
                                   .cast<int>()
                                   .toList();
-                              
+
                               setState(() {
-                                 // Toggle: If all relevant users are selected, deselect them. Otherwise, select all.
-                                 // We check if the set of selected IDs contains all available IDs.
-                                 bool allSelected = allUserIds.isNotEmpty && 
-                                                    allUserIds.every((id) => _selectedReceiverIds.contains(id));
-                                 
-                                 if (allSelected) {
-                                   _selectedReceiverIds.clear();
-                                 } else {
-                                   _selectedReceiverIds.clear();
-                                   _selectedReceiverIds.addAll(allUserIds);
-                                 }
+                                // Toggle: If all relevant users are selected, deselect them. Otherwise, select all.
+                                // We check if the set of selected IDs contains all available IDs.
+                                bool allSelected =
+                                    allUserIds.isNotEmpty &&
+                                    allUserIds.every(
+                                      (id) => _selectedReceiverIds.contains(id),
+                                    );
+
+                                if (allSelected) {
+                                  _selectedReceiverIds.clear();
+                                } else {
+                                  _selectedReceiverIds.clear();
+                                  _selectedReceiverIds.addAll(allUserIds);
+                                }
                               });
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFD700).withOpacity(0.2), // Gold with opacity
+                                color: const Color(
+                                  0xFFFFD700,
+                                ).withOpacity(0.2), // Gold with opacity
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: const Color(0xFFFFD700), width: 1),
+                                border: Border.all(
+                                  color: const Color(0xFFFFD700),
+                                  width: 1,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.select_all, color: Color(0xFFFFD700), size: 16),
+                                  const Icon(
+                                    Icons.select_all,
+                                    color: Color(0xFFFFD700),
+                                    size: 16,
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     "Gift to all users",
@@ -435,9 +466,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
           ),
 
           // Content Area - All tabs show gifts filtered by category
-          Expanded(
-            child: _buildGiftContent(),
-          ),
+          Expanded(child: _buildGiftContent()),
 
           // Bottom Action Bar
           _buildBottomActionBar(),
@@ -446,7 +475,6 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     );
   }
 
- 
   // Navigation Tabs
   Widget _buildNavigationTabs() {
     return Consumer<GiftProvider>(
@@ -457,7 +485,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
             _updateCategoriesFromAPI(giftProvider);
           });
         }
-        
+
         // Show loading or empty state if no categories yet
         if (mainCategories.isEmpty) {
           return Container(
@@ -466,15 +494,12 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
             child: Center(
               child: Text(
                 'Loading categories...',
-                style: GoogleFonts.poppins(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 14),
               ),
             ),
           );
         }
-        
+
         return Container(
           height: 50,
           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -500,7 +525,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
         });
         _animationController.reset();
         _animationController.forward();
-        
+
         // Update gift provider category when main tab changes
         final giftProvider = Provider.of<GiftProvider>(context, listen: false);
         // null category means show all gifts (for "Gift" tab)
@@ -527,7 +552,6 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     );
   }
 
-
   Widget _buildGiftContent() {
     return Consumer<GiftProvider>(
       builder: (context, giftProvider, child) {
@@ -537,7 +561,9 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.primaryColor,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -561,39 +587,47 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
                 const SizedBox(height: 16),
                 Text(
                   giftProvider.errorMessage!,
-                  style: GoogleFonts.poppins(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
+                  style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
-              
               ],
             ),
           );
         }
 
         final allGifts = giftProvider.giftsForSelectedCategory;
-        
+
         // // ✅ Filter to show only SVGA gifts
         // final gifts = allGifts.where((gift) {
         //   return _isSvgaGift(gift);
         // }).toList();
-        
+
         print("🎁 [CategoryBottomSheet] ===== BUILDING GIFT CONTENT =====");
-        print("🎁 [CategoryBottomSheet] Selected category index: $selectedCategoryIndex");
-        print("🎁 [CategoryBottomSheet] Total gifts in provider: ${giftProvider.allGifts.length}");
-        print("🎁 [CategoryBottomSheet] Selected category: ${giftProvider.selectedCategory}");
-        print("🎁 [CategoryBottomSheet] All gifts for selected category: ${allGifts.length}");
+        print(
+          "🎁 [CategoryBottomSheet] Selected category index: $selectedCategoryIndex",
+        );
+        print(
+          "🎁 [CategoryBottomSheet] Total gifts in provider: ${giftProvider.allGifts.length}",
+        );
+        print(
+          "🎁 [CategoryBottomSheet] Selected category: ${giftProvider.selectedCategory}",
+        );
+        print(
+          "🎁 [CategoryBottomSheet] All gifts for selected category: ${allGifts.length}",
+        );
         // print("🎁 [CategoryBottomSheet] SVGA gifts only: ${gifts.length}");
         // print("🎁 [CategoryBottomSheet] SVGA Gift IDs: ${gifts.map((g) => g.id).toList()}");
-        
+
         // Get selected category from main categories
-        final selectedMainCategory = mainCategories.isNotEmpty && selectedCategoryIndex < mainCategories.length
+        final selectedMainCategory =
+            mainCategories.isNotEmpty &&
+                selectedCategoryIndex < mainCategories.length
             ? mainCategories[selectedCategoryIndex]
             : null;
         final mainCategoryValue = selectedMainCategory?['category'];
-        print("🎁 [CategoryBottomSheet] Main category value: $mainCategoryValue");
+        print(
+          "🎁 [CategoryBottomSheet] Main category value: $mainCategoryValue",
+        );
 
         if (allGifts.isEmpty) {
           return Center(
@@ -627,20 +661,21 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
               itemCount: allGifts.length,
               itemBuilder: (context, index) {
                 final gift = allGifts[index];
-              final isSelected = giftProvider.selectedGift?.id == gift.id;
-              // Get category info from mainCategories or use default
-              final categoryInfo = mainCategories.isNotEmpty && selectedCategoryIndex < mainCategories.length
-                  ? mainCategories[selectedCategoryIndex]
-                  : {'name': 'All', 'category': null, 'color': Colors.yellow};
-              return _buildGiftCard(gift, isSelected, categoryInfo);
-            },
+                final isSelected = giftProvider.selectedGift?.id == gift.id;
+                // Get category info from mainCategories or use default
+                final categoryInfo =
+                    mainCategories.isNotEmpty &&
+                        selectedCategoryIndex < mainCategories.length
+                    ? mainCategories[selectedCategoryIndex]
+                    : {'name': 'All', 'category': null, 'color': Colors.yellow};
+                return _buildGiftCard(gift, isSelected, categoryInfo);
+              },
             ),
           ),
         );
       },
     );
   }
-
 
   /// Build gift media widget - shows actual gift content (static image or SVGA preview)
   /// ✅ Animations will only play on room screen AFTER gift is sent
@@ -650,13 +685,14 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     print("🎬 [CategoryBottomSheet] Gift: ${gift.name} (ID: ${gift.id})");
     print("🎬 [CategoryBottomSheet] Image URL: ${gift.image}");
     print("🎬 [CategoryBottomSheet] Animation URL: ${gift.animationFile}");
-    
+
     // ✅ Priority 1: Show static gift image if available
     if (gift.image != null && gift.image!.isNotEmpty) {
       final imageUrl = gift.image!;
-      
+
       // ✅ Check if it's a local file path (don't normalize local paths)
-      bool isLocalPath = imageUrl.startsWith('/data/') ||
+      bool isLocalPath =
+          imageUrl.startsWith('/data/') ||
           imageUrl.startsWith('/storage/') ||
           imageUrl.startsWith('/private/') ||
           imageUrl.startsWith('/var/') ||
@@ -667,19 +703,25 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
           imageUrl.contains('/com.') ||
           imageUrl.startsWith('file://') ||
           imageUrl.contains('/data/user/');
-      
+
       // Normalize image URL if needed (only for server paths, not local files)
       String normalizedImageUrl = imageUrl;
-      if (!isLocalPath && !imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      if (!isLocalPath &&
+          !imageUrl.startsWith('http://') &&
+          !imageUrl.startsWith('https://')) {
         normalizedImageUrl = 'https://shaheenstar.online/$imageUrl';
       } else if (isLocalPath) {
-        print("⚠️ [CategoryBottomSheet] Gift image is local file path, cannot load as network URL: $imageUrl");
+        print(
+          "⚠️ [CategoryBottomSheet] Gift image is local file path, cannot load as network URL: $imageUrl",
+        );
         // Return placeholder for local paths
         return AppImage.asset('assets/images/person.png', fit: BoxFit.contain);
       }
-      
-      print("🎨 [CategoryBottomSheet] Showing static gift image: $normalizedImageUrl");
-      
+
+      print(
+        "🎨 [CategoryBottomSheet] Showing static gift image: $normalizedImageUrl",
+      );
+
       try {
         return CachedNetworkImage(
           imageUrl: normalizedImageUrl,
@@ -693,7 +735,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
             print("❌ [CategoryBottomSheet] Error loading gift image: $error");
             // If static image fails and it's SVGA, show SVGA preview
             if (_isSvgaGift(gift)) {
-                    print("image is svga");
+              print("image is svga");
               return _buildSvgaPreview(gift);
             }
 
@@ -706,27 +748,27 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
         print("❌ [CategoryBottomSheet] Error displaying gift image: $e");
         // If static image fails and it's SVGA, show SVGA preview
         if (_isSvgaGift(gift)) {
-                print("image is svga");
+          print("image is svga");
           return _buildSvgaPreview(gift);
         }
-             print("image is mp4");
+        print("image is mp4");
         // Return empty container instead of fallback icon
         return const SizedBox.shrink();
       }
     }
-    
+
     // ✅ Priority 2: For SVGA gifts without static image, show SVGA file as static preview
-    if (_isSvgaGift(gift) && gift.animationFile != null && gift.animationFile!.isNotEmpty) {
-              print("image is svga");
+    if (_isSvgaGift(gift) &&
+        gift.animationFile != null &&
+        gift.animationFile!.isNotEmpty) {
+      print("image is svga");
       return _buildSvgaPreview(gift);
     }
-         print("image is mp4");
-    
+    print("image is mp4");
+
     // ✅ No fallback - return empty container if gift has no image or animation
     return const SizedBox.shrink();
   }
-
- 
 
   /// Build SVGA preview - shows the actual SVGA file as a static preview (first frame)
   /// This shows the actual gift content, not a fallback icon
@@ -734,22 +776,22 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     if (gift.animationFile == null || gift.animationFile!.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     // Normalize SVGA URL
     String svgaUrl = gift.animationFile!;
     if (!svgaUrl.startsWith('http://') && !svgaUrl.startsWith('https://')) {
       svgaUrl = 'https://shaheenstar.online/$svgaUrl';
     }
-    
+
     print("🎨 [CategoryBottomSheet] Showing SVGA preview: $svgaUrl");
-    
+
     try {
       // Show SVGA file as a simple preview (auto-plays and loops)
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: SVGASimpleImage(
           resUrl: svgaUrl,
-           // Note: SVGASimpleImage auto-plays and loops, which is fine for preview
+          // Note: SVGASimpleImage auto-plays and loops, which is fine for preview
           // The full animation will only play on room screen after gift is sent
         ),
       );
@@ -760,23 +802,24 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
     }
   }
 
-  Widget _buildGiftCard(GiftModel gift, bool isSelected, Map<String, dynamic> category) {
+  Widget _buildGiftCard(
+    GiftModel gift,
+    bool isSelected,
+    Map<String, dynamic> category,
+  ) {
     return GestureDetector(
       onTap: () {
         // ✅ Now gifts are selected directly - animation will play AFTER sending
-          Provider.of<GiftProvider>(context, listen: false).selectGift(gift);
+        Provider.of<GiftProvider>(context, listen: false).selectGift(gift);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.all(isSelected ? 2 : 0), // Add padding when selected to show border
+        padding: EdgeInsets.all(
+          isSelected ? 2 : 0,
+        ), // Add padding when selected to show border
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(
-                  color: Colors.amber,
-                  width: 1,
-                )
-              : null,
+          border: isSelected ? Border.all(color: Colors.amber, width: 1) : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -787,8 +830,8 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
               flex: 3,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-              child: _buildGiftMedia(gift, category),
-            ),
+                child: _buildGiftMedia(gift, category),
+              ),
             ),
             const SizedBox(height: 4),
             // Gift Name
@@ -819,7 +862,7 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
                 Text(
                   gift.formattedPrice,
                   style: GoogleFonts.poppins(
-                     color: Colors.amber,
+                    color: Colors.amber,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -838,13 +881,11 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
       builder: (context, giftProvider, child) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.grey[900]!.withOpacity(0.5),
-            border: Border(
-              top: BorderSide(color: Colors.grey[800]!, width: 1),
-                      ),
-                  ),
-                  child: Row(
+            border: Border(top: BorderSide(color: Colors.grey[800]!, width: 1)),
+          ),
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Left side: Currency + Recharge
@@ -867,7 +908,9 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.amber,
+                                ),
                               ),
                             )
                           : Text(
@@ -893,414 +936,482 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
                     },
                     child: Text(
                       'Recharge >',
-                            style: GoogleFonts.poppins(
+                      style: GoogleFonts.poppins(
                         color: Colors.white70,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                  ),
-                        ],
                       ),
+                    ),
+                  ),
+                ],
+              ),
               // Right side: Quantity Selector + Send Button
               Row(
                 children: [
                   // Quantity Selector (only show when gift is selected)
                   if (giftProvider.selectedGift != null) ...[
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
                         color: Colors.grey[800]!.withOpacity(0.5),
                         borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: Colors.grey[700]!,
-                        width: 1,
+                        border: Border.all(color: Colors.grey[700]!, width: 1),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => giftProvider.decreaseQuantity(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () => giftProvider.decreaseQuantity(),
                             child: const Icon(
                               Icons.keyboard_arrow_down,
                               color: Colors.white70,
                               size: 18,
+                            ),
                           ),
-                        ),
                           const SizedBox(width: 8),
-                        Text(
-                          '${giftProvider.giftQuantity}',
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                          Text(
+                            '${giftProvider.giftQuantity}',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => giftProvider.increaseQuantity(),
                             child: const Icon(
-                          Icons.keyboard_arrow_up,
-                          color: Colors.white70,
+                              Icons.keyboard_arrow_up,
+                              color: Colors.white70,
                               size: 18,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                     const SizedBox(width: 12),
                   ],
                   // Send Button (yellow)
-                GestureDetector(
-                  onTap: () async {
-                    if (giftProvider.selectedGift == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Please select a gift'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                      return;
-                    }
-
-                  if (widget.senderId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Please login to send gifts'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (widget.roomId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Room information missing'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  // ✅ Get receivers - always allow multiple selection
-                  final receivers = _selectedReceiverIds.isNotEmpty
-                      ? _selectedReceiverIds.toList()
-                      : (widget.receiverId != null ? [widget.receiverId!] : []);
-                  
-                  if (receivers.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Please select at least one user from the list above to send gift to.',
-                        ),
-                        backgroundColor: Colors.orange,
-                        duration: Duration(seconds: 4),
-                      ),
-                    );
-                    return;
-                  }
-                  
-                  final isMultipleReceivers = receivers.length > 1;
-                  
-                  // ✅ Allow self-gifting - users can send gifts to themselves
-                  if (receivers.contains(widget.senderId)) {
-                    print('💝 Self-gift detected - allowing user to send gift to their own seat');
-                    print('   - Sender ID: ${widget.senderId}');
-                    print('   - Receiver IDs: $receivers');
-                  }
-                  
-                  print('🎁 ========== SENDING GIFT ==========');
-                  print('   - Sender ID: ${widget.senderId}');
-                  print('   - Receiver IDs: $receivers (${isMultipleReceivers ? 'Multiple' : 'Single'})');
-                  print('   - Room ID: ${widget.roomId}');
-                  print('   - Gift: ${giftProvider.selectedGift?.name}');
-                  print('   - Gift ID: ${giftProvider.selectedGift?.id}');
-                  print('   - Gift Price: ${giftProvider.selectedGift?.price}');
-                  print('   - Quantity: ${giftProvider.giftQuantity}');
-                  print('   - Total Value: ${giftProvider.selectedGift!.price * giftProvider.giftQuantity}');
-                  print('🎁 ====================================');
-                  
-                  // ✅ For multiple receivers, send gift to each receiver individually
-                  // Show loading dialog
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryColor),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              isMultipleReceivers
-                                  ? 'Sending gift to ${receivers.length} users...'
-                                  : 'Sending gift...',
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-
-                  // ✅ Send gift to each receiver
-                  bool allSuccess = true;
-                  int successCount = 0;
-                  
-                  // Track seats for combo
-                  Map<int, int?> comboReceiverSeats = {};
-                  int? comboSenderSeat;
-
-                  // ✅ Capture selected gift BEFORE sending, because sendGift clears it on success
-                  final giftToSubmit = giftProvider.selectedGift;
-                  
-                  for (int i = 0; i < receivers.length; i++) {
-                    final currentReceiverId = receivers[i];
-                    print('🎁 Sending gift ${i + 1}/${receivers.length} to receiver: $currentReceiverId');
-             
-                    // ✅ Find seat number for current receiver
-                  int? seatNumber;
-                  int? senderSeatNumber;
-                  try {
-                    final seatProvider = Provider.of<SeatProvider>(context, listen: false);
-                    
-                    // Find receiver's seat
-                      try {
-                    final receiverSeat = seatProvider.seats.firstWhere(
-                      (seat) => seat.userId != null && 
-                                   int.tryParse(seat.userId!) == currentReceiverId &&
-                               seat.isOccupied,
-                    );
-                    seatNumber = receiverSeat.seatNumber;
-                    comboReceiverSeats[currentReceiverId] = seatNumber; // Store for combo
-                        print('🎁 Found receiver $currentReceiverId on seat: $seatNumber');
-                      } catch (e) {
-                        print('⚠️ Could not find seat number for receiver $currentReceiverId: $e');
-                        seatNumber = null;
-                      }
-                    
-                      // ✅ Find sender's seat number
-                    try {
-                      final senderSeat = seatProvider.seats.firstWhere(
-                        (seat) => seat.userId != null && 
-                                 int.tryParse(seat.userId!) == widget.senderId &&
-                                 seat.isOccupied,
-                      );
-                      senderSeatNumber = senderSeat.seatNumber;
-                      comboSenderSeat = senderSeatNumber; // Store for combo
-                      print('🎁 Found sender on seat: $senderSeatNumber');
-                    } catch (e) {
-                      print('⚠️ Could not find sender seat number: $e');
-                      senderSeatNumber = null;
-                    }
-                  } catch (e) {
-                      print('⚠️ Error finding seats: $e');
-                  }
-                  
-                    // ✅ Send gift to current receiver
-                  final success = await giftProvider.sendGift(
-                    senderId: widget.senderId!,
-                      receiverId: currentReceiverId,
-                    roomId: widget.roomId!,
-                      seatNumber: seatNumber,
-                      senderSeatNumber: senderSeatNumber,
-                    );
-                    
-                    if (success) {
-                      successCount++;
-                      print('✅ Gift sent successfully to receiver $currentReceiverId');
-                      // If this gift is in the 'lucky' category, call the lucky addGiftExp API
-                      try {
-                        final selectedGift = giftProvider.selectedGift;
-                        if (selectedGift != null && selectedGift.category == 'lucky') {
-                          final double giftPrice = selectedGift.price * giftProvider.giftQuantity;
-                          final resp = await ApiManager.addGiftExp(
-                            senderId: widget.senderId!,
-                            receiverId: currentReceiverId,
-                            giftPrice: giftPrice,
-                            isLuckyGift: true,
-                          );
-                          print('🍀 addGiftExp response for receiver $currentReceiverId: $resp');
-                            // Also trigger via Gifts WebSocket (port 8085) if connected
-                            try {
-                              final ws = GiftWebSocketService.instance;
-                              if (ws.isConnected) {
-                                final wsSent = ws.triggerLuckySpin(
-                                  senderId: widget.senderId!,
-                                  receiverId: currentReceiverId,
-                                  giftId: selectedGift.id ?? 0,
-                                  quantity: giftProvider.giftQuantity,
-                                  roomId: widget.roomId,
-                                );
-                                print('🍀 triggerLuckySpin via WS returned: $wsSent');
-                              } else {
-                                print('⚠️ Gifts WebSocket not connected; skipping triggerLuckySpin WS call');
-                              }
-                            } catch (e) {
-                              print('⚠️ triggerLuckySpin WS call failed for receiver $currentReceiverId: $e');
-                            }
-                            // Trigger the lucky spinner API as well
-                            try {
-                              final luckyResp = await ApiManager.triggerLuckyGift(
-                                senderId: widget.senderId!,
-                                receiverId: currentReceiverId,
-                                giftId: selectedGift.id ?? 0,
-                                quantity: giftProvider.giftQuantity,
-                                roomId: widget.roomId,
-                              );
-                              print('🍀 triggerLuckyGift response for receiver $currentReceiverId: $luckyResp');
-                            } catch (e) {
-                              print('⚠️ triggerLuckyGift failed for receiver $currentReceiverId: $e');
-                            }
-                        }
-                      } catch (e) {
-                        print('⚠️ addGiftExp API call failed for receiver $currentReceiverId: $e');
-                      }
-                    } else {
-                      allSuccess = false;
-                      print('❌ Failed to send gift to receiver $currentReceiverId');
-                    }
-                    
-                    // ✅ Small delay between sends to avoid overwhelming the server
-                    if (i < receivers.length - 1) {
-                      await Future.delayed(Duration(milliseconds: 300));
-                    }
-                  }
-
-                  if (!context.mounted) return;
-                  
-                  // Hide loading dialog
-                  Navigator.of(context).pop();
-
-                  if (allSuccess || successCount > 0) {
-                    // ✅ At least some gifts were sent successfully
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                isMultipleReceivers
-                                    ? 'Gift sent to $successCount/${receivers.length} users successfully!'
-                                    : 'Gift sent successfully!',
-                              ),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    
-                    // ✅ Broadcast overlay: non-Lucky gift > 1 lakh (100,000) coins (same position as Lucky banner)
-                    if (mounted && context.mounted && giftToSubmit != null) {
-                      final cat = giftToSubmit.category.toLowerCase();
-                      final totalCoins = giftToSubmit.price * giftProvider.giftQuantity;
-                      if (!cat.contains('lucky') && totalCoins > 100000) {
-                        final profileProvider = Provider.of<ProfileUpdateProvider>(context, listen: false);
-                        Provider.of<BroadcastProvider>(context, listen: false).showBroadcastOverlay(
-                          senderName: profileProvider.username ?? 'User',
-                          senderProfileUrl: profileProvider.profile_url ?? '',
-                          giftAmount: totalCoins,
+                  GestureDetector(
+                    onTap: () async {
+                      if (giftProvider.selectedGift == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Please select a gift'),
+                            backgroundColor: Colors.orange,
+                          ),
                         );
+                        return;
                       }
-                    }
-                    
-                    // ✅ Start Combo Mode if gift sent successfully
-                    if (mounted && context.mounted) {
-                        final giftProvider = Provider.of<GiftProvider>(context, listen: false);
-                        // USE THE CAPTURED GIFT HERE
-                        if (giftToSubmit != null) {
-                           // ✅ Check if it's a Lucky gift before starting combo
-                           // Check both the gift category and the currently selected tab to be robust
-                           final giftCategory = giftToSubmit.category.toLowerCase();
-                           final tabCategory = giftProvider.selectedCategory?.toLowerCase() ?? '';
-                           
-                           // Relaxed check: if explicit category is 'lucky' OR user is on 'lucky' tab
-                           // Also includes 'svga' as often lucky gifts are SVGA
-                           final isLucky = giftCategory.contains('lucky') || 
-                                          tabCategory.contains('lucky');
-                           
-                           print('🔍 [CategoryBottomSheet] Combo Check - Gift Cat: "$giftCategory", Tab: "$tabCategory", IsLucky: $isLucky');
-                           
-                           if (isLucky) {
-                             print('🍀 [CategoryBottomSheet] Starting Combo for Lucky Gift: ${giftToSubmit.name}');
-                             giftProvider.startCombo(
-                                gift: giftToSubmit,
-                                receiverIds: receivers.cast<int>().toList(),
-                                roomId: widget.roomId ?? 0, 
-                                receiverSeats: comboReceiverSeats,
-                                senderSeat: comboSenderSeat,
-                             );
-                           } else {
-                             print('ℹ️ [CategoryBottomSheet] Combo skipped - Not a lucky gift');
-                           }
-                        }
-                    }
 
-                    // ✅ Close bottom sheet after short delay
-                    Future.delayed(Duration(milliseconds: 300), () {
-                      if (mounted && context.mounted) {
-                        Navigator.of(context, rootNavigator: false).pop();
-                        print('✅ CategoryBottomSheet closed');
+                      if (widget.senderId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Please login to send gifts'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
                       }
-                    });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.error, color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                          giftProvider.errorMessage ?? 'Failed to send gift. Please try again.',
-                              ),
+
+                      if (widget.roomId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Room information missing'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // ✅ Get receivers - always allow multiple selection
+                      final receivers = _selectedReceiverIds.isNotEmpty
+                          ? _selectedReceiverIds.toList()
+                          : (widget.receiverId != null
+                                ? [widget.receiverId!]
+                                : []);
+
+                      if (receivers.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please select at least one user from the list above to send gift to.',
                             ),
-                          ],
-                        ),
-                        backgroundColor: Colors.red,
-                        duration: Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                  
-                  return; // ✅ Exit early - we've handled sending to all receivers
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.yellow,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                          'Send',
-                          style: GoogleFonts.poppins(
-                        color: Colors.black,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
+                            backgroundColor: Colors.orange,
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                        return;
+                      }
+
+                      final isMultipleReceivers = receivers.length > 1;
+
+                      // ✅ Allow self-gifting - users can send gifts to themselves
+                      if (receivers.contains(widget.senderId)) {
+                        print(
+                          '💝 Self-gift detected - allowing user to send gift to their own seat',
+                        );
+                        print('   - Sender ID: ${widget.senderId}');
+                        print('   - Receiver IDs: $receivers');
+                      }
+
+                      print('🎁 ========== SENDING GIFT ==========');
+                      print('   - Sender ID: ${widget.senderId}');
+                      print(
+                        '   - Receiver IDs: $receivers (${isMultipleReceivers ? 'Multiple' : 'Single'})',
+                      );
+                      print('   - Room ID: ${widget.roomId}');
+                      print('   - Gift: ${giftProvider.selectedGift?.name}');
+                      print('   - Gift ID: ${giftProvider.selectedGift?.id}');
+                      print(
+                        '   - Gift Price: ${giftProvider.selectedGift?.price}',
+                      );
+                      print('   - Quantity: ${giftProvider.giftQuantity}');
+                      print(
+                        '   - Total Value: ${giftProvider.selectedGift!.price * giftProvider.giftQuantity}',
+                      );
+                      print('🎁 ====================================');
+
+                      // ✅ For multiple receivers, send gift to each receiver individually
+                      // Show loading dialog
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.black87,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  isMultipleReceivers
+                                      ? 'Sending gift to ${receivers.length} users...'
+                                      : 'Sending gift...',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
+                      );
+
+                      // ✅ Send gift to each receiver
+                      bool allSuccess = true;
+                      int successCount = 0;
+
+                      // Track seats for combo
+                      Map<int, int?> comboReceiverSeats = {};
+                      int? comboSenderSeat;
+
+                      // ✅ Capture selected gift BEFORE sending, because sendGift clears it on success
+                      final giftToSubmit = giftProvider.selectedGift;
+
+                      for (int i = 0; i < receivers.length; i++) {
+                        final currentReceiverId = receivers[i];
+                        print(
+                          '🎁 Sending gift ${i + 1}/${receivers.length} to receiver: $currentReceiverId',
+                        );
+
+                        // ✅ Find seat number for current receiver
+                        int? seatNumber;
+                        int? senderSeatNumber;
+                        try {
+                          final seatProvider = Provider.of<SeatProvider>(
+                            context,
+                            listen: false,
+                          );
+
+                          // Find receiver's seat
+                          try {
+                            final receiverSeat = seatProvider.seats.firstWhere(
+                              (seat) =>
+                                  seat.userId != null &&
+                                  int.tryParse(seat.userId!) ==
+                                      currentReceiverId &&
+                                  seat.isOccupied,
+                            );
+                            seatNumber = receiverSeat.seatNumber;
+                            comboReceiverSeats[currentReceiverId] =
+                                seatNumber; // Store for combo
+                            print(
+                              '🎁 Found receiver $currentReceiverId on seat: $seatNumber',
+                            );
+                          } catch (e) {
+                            print(
+                              '⚠️ Could not find seat number for receiver $currentReceiverId: $e',
+                            );
+                            seatNumber = null;
+                          }
+
+                          // ✅ Find sender's seat number
+                          try {
+                            final senderSeat = seatProvider.seats.firstWhere(
+                              (seat) =>
+                                  seat.userId != null &&
+                                  int.tryParse(seat.userId!) ==
+                                      widget.senderId &&
+                                  seat.isOccupied,
+                            );
+                            senderSeatNumber = senderSeat.seatNumber;
+                            comboSenderSeat =
+                                senderSeatNumber; // Store for combo
+                            print('🎁 Found sender on seat: $senderSeatNumber');
+                          } catch (e) {
+                            print('⚠️ Could not find sender seat number: $e');
+                            senderSeatNumber = null;
+                          }
+                        } catch (e) {
+                          print('⚠️ Error finding seats: $e');
+                        }
+
+                        // ✅ Send gift to current receiver
+                        final success = await giftProvider.sendGift(
+                          senderId: widget.senderId!,
+                          receiverId: currentReceiverId,
+                          roomId: widget.roomId!,
+                          seatNumber: seatNumber,
+                          senderSeatNumber: senderSeatNumber,
+                        );
+
+                        if (success) {
+                          successCount++;
+                          print(
+                            '✅ Gift sent successfully to receiver $currentReceiverId',
+                          );
+                          // If this gift is in the 'lucky' category, call the lucky addGiftExp API
+                          try {
+                            final selectedGift = giftProvider.selectedGift;
+                            if (selectedGift != null &&
+                                selectedGift.category == 'lucky') {
+                              final double giftPrice =
+                                  selectedGift.price *
+                                  giftProvider.giftQuantity;
+                              final resp = await ApiManager.addGiftExp(
+                                senderId: widget.senderId!,
+                                receiverId: currentReceiverId,
+                                giftPrice: giftPrice,
+                                isLuckyGift: true,
+                              );
+                              print(
+                                '🍀 addGiftExp response for receiver $currentReceiverId: $resp',
+                              );
+                              // Also trigger via Gifts WebSocket (port 8085) if connected
+                              try {
+                                final ws = GiftWebSocketService.instance;
+                                if (ws.isConnected) {
+                                  final wsSent = ws.triggerLuckySpin(
+                                    senderId: widget.senderId!,
+                                    receiverId: currentReceiverId,
+                                    giftId: selectedGift.id ?? 0,
+                                    quantity: giftProvider.giftQuantity,
+                                    roomId: widget.roomId,
+                                  );
+                                  print(
+                                    '🍀 triggerLuckySpin via WS returned: $wsSent',
+                                  );
+                                } else {
+                                  print(
+                                    '⚠️ Gifts WebSocket not connected; skipping triggerLuckySpin WS call',
+                                  );
+                                }
+                              } catch (e) {
+                                print(
+                                  '⚠️ triggerLuckySpin WS call failed for receiver $currentReceiverId: $e',
+                                );
+                              }
+                              // Trigger the lucky spinner API as well
+                              try {
+                                final luckyResp =
+                                    await ApiManager.triggerLuckyGift(
+                                      senderId: widget.senderId!,
+                                      receiverId: currentReceiverId,
+                                      giftId: selectedGift.id ?? 0,
+                                      quantity: giftProvider.giftQuantity,
+                                      roomId: widget.roomId,
+                                    );
+                                print(
+                                  '🍀 triggerLuckyGift response for receiver $currentReceiverId: $luckyResp',
+                                );
+                              } catch (e) {
+                                print(
+                                  '⚠️ triggerLuckyGift failed for receiver $currentReceiverId: $e',
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            print(
+                              '⚠️ addGiftExp API call failed for receiver $currentReceiverId: $e',
+                            );
+                          }
+                        } else {
+                          allSuccess = false;
+                          print(
+                            '❌ Failed to send gift to receiver $currentReceiverId',
+                          );
+                        }
+
+                        // ✅ Small delay between sends to avoid overwhelming the server
+                        if (i < receivers.length - 1) {
+                          await Future.delayed(Duration(milliseconds: 300));
+                        }
+                      }
+
+                      if (!context.mounted) return;
+
+                      // Hide loading dialog
+                      Navigator.of(context).pop();
+
+                      if (allSuccess || successCount > 0) {
+                        // ✅ At least some gifts were sent successfully
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    isMultipleReceivers
+                                        ? 'Gift sent to $successCount/${receivers.length} users successfully!'
+                                        : 'Gift sent successfully!',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+
+                        // ✅ Local Lucky banner to ensure immediate display; result event will update coins
+                        if (mounted &&
+                            context.mounted &&
+                            giftToSubmit != null) {
+                          final cat = giftToSubmit.category.toLowerCase();
+                          final totalCoins =
+                              giftToSubmit.price * giftProvider.giftQuantity;
+                          if (cat.contains('lucky')) {
+                            /* 
+                            // 🔇 LOCAL BROADCAST DISABLED 
+                            // Wait for the server response (with win details) to trigger the banner via WebSocket
+                            // logic in room_screen.dart -> _handleGiftSentEvent
+                            */
+                          }
+                        }
+
+                        // ✅ Start Combo Mode if gift sent successfully
+                        if (mounted && context.mounted) {
+                          final giftProvider = Provider.of<GiftProvider>(
+                            context,
+                            listen: false,
+                          );
+                          // USE THE CAPTURED GIFT HERE
+                          if (giftToSubmit != null) {
+                            // ✅ Check if it's a Lucky gift before starting combo
+                            // Check both the gift category and the currently selected tab to be robust
+                            final giftCategory = giftToSubmit.category
+                                .toLowerCase();
+                            final tabCategory =
+                                giftProvider.selectedCategory?.toLowerCase() ??
+                                '';
+
+                            // Relaxed check: if explicit category is 'lucky' OR user is on 'lucky' tab
+                            // Also includes 'svga' as often lucky gifts are SVGA
+                            final isLucky =
+                                giftCategory.contains('lucky') ||
+                                tabCategory.contains('lucky');
+
+                            print(
+                              '🔍 [CategoryBottomSheet] Combo Check - Gift Cat: "$giftCategory", Tab: "$tabCategory", IsLucky: $isLucky',
+                            );
+
+                            if (isLucky) {
+                              print(
+                                '🍀 [CategoryBottomSheet] Starting Combo for Lucky Gift: ${giftToSubmit.name}',
+                              );
+                              giftProvider.startCombo(
+                                gift: giftToSubmit,
+                                receiverIds: receivers.cast<int>().toList(),
+                                roomId: widget.roomId ?? 0,
+                                receiverSeats: comboReceiverSeats,
+                                senderSeat: comboSenderSeat,
+                              );
+                            } else {
+                              print(
+                                'ℹ️ [CategoryBottomSheet] Combo skipped - Not a lucky gift',
+                              );
+                            }
+                          }
+                        }
+
+                        // ✅ Close bottom sheet after short delay
+                        Future.delayed(Duration(milliseconds: 300), () {
+                          if (mounted && context.mounted) {
+                            Navigator.of(context, rootNavigator: false).pop();
+                            print('✅ CategoryBottomSheet closed');
+                          }
+                        });
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.error, color: Colors.white),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    giftProvider.errorMessage ??
+                                        'Failed to send gift. Please try again.',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+
+                      return; // ✅ Exit early - we've handled sending to all receivers
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.yellow,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Send',
+                        style: GoogleFonts.poppins(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-              ],
-                ),
-              ],
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -1331,110 +1442,113 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
 
         return Container(
           height: 70,
-          margin: const EdgeInsets.symmetric(horizontal: 10, ),
+          margin: const EdgeInsets.symmetric(horizontal: 10),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: occupiedSeats.length,
             itemBuilder: (context, index) {
-                final seat = occupiedSeats[index];
-                final userId = int.tryParse(seat.userId ?? '');
-                final isSelected = _selectedReceiverIds.contains(userId);
-                 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      // ✅ Always allow multiple selection - toggle selection on tap
-                        if (_selectedReceiverIds.contains(userId)) {
-                          _selectedReceiverIds.remove(userId);
-                        } else {
-                        if (userId != null) {
-                          _selectedReceiverIds.add(userId);
-                        }
+              final seat = occupiedSeats[index];
+              final userId = int.tryParse(seat.userId ?? '');
+              final isSelected = _selectedReceiverIds.contains(userId);
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    // ✅ Always allow multiple selection - toggle selection on tap
+                    if (_selectedReceiverIds.contains(userId)) {
+                      _selectedReceiverIds.remove(userId);
+                    } else {
+                      if (userId != null) {
+                        _selectedReceiverIds.add(userId);
                       }
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 10),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // User Avatar with selection badge
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: 45,
-                              height: 45,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.amber
-                                      : Colors.grey[700]!,
-                                  width: 1,
-                                        ),
+                    }
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // User Avatar with selection badge
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.amber
+                                    : Colors.grey[700]!,
+                                width: 1,
                               ),
-                              child: ClipOval(
-                                child: seat.profileUrl != null &&
-                                        seat.profileUrl!.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: seat.profileUrl!,
-                                        fit: BoxFit.cover,
-                                        placeholder: (context, url) => Container(
-                                          color: Colors.grey[800],
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(
-                                                AppColors.primaryColor,
-                                              ),
+                            ),
+                            child: ClipOval(
+                              child:
+                                  seat.profileUrl != null &&
+                                      seat.profileUrl!.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: seat.profileUrl!,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) => Container(
+                                        color: Colors.grey[800],
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  AppColors.primaryColor,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) =>
+                                          Container(
+                                            color: Colors.grey[800],
+                                            child: Icon(
+                                              Icons.person,
+                                              color: Colors.grey[400],
+                                              size: 30,
                                             ),
                                           ),
-                                        ),
-                                        errorWidget: (context, url, error) => Container(
-                                          color: Colors.grey[800],
-                                          child: Icon(
-                                            Icons.person,
-                                            color: Colors.grey[400],
-                                            size: 30,
-                                          ),
-                                        ),
-                                      )
-                                    : Container(
-                                        color: Colors.grey[800],
-                                        child: Icon(
-                                          Icons.person,
-                                          color: Colors.grey[400],
-                                          size: 30,
+                                    )
+                                  : Container(
+                                      color: Colors.grey[800],
+                                      child: Icon(
+                                        Icons.person,
+                                        color: Colors.grey[400],
+                                        size: 30,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        // User Name
-                        const SizedBox(height: 2),
-                        SizedBox(
-                          width: 45,
-                          child: Text(
-                            seat.userName ?? seat.username ?? 'User',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w500,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
                           ),
+                        ],
+                      ),
+                      // User Name
+                      const SizedBox(height: 2),
+                      SizedBox(
+                        width: 45,
+                        child: Text(
+                          seat.userName ?? seat.username ?? 'User',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -1442,21 +1556,26 @@ class _CategoryBottomSheetState extends State<CategoryBottomSheet> with TickerPr
 
   /// Check if gift is SVGA format
   bool _isSvgaGift(GiftModel gift) {
-    if (!gift.hasAnimation || gift.animationFile == null || gift.animationFile!.isEmpty) {
+    if (!gift.hasAnimation ||
+        gift.animationFile == null ||
+        gift.animationFile!.isEmpty) {
       return false;
     }
-    
+
     final animUrl = gift.animationFile!.toLowerCase();
-    final isSvga = animUrl.endsWith('.svga') || 
-                   animUrl.contains('.svga?') || 
-                   animUrl.contains('.svga&') ||
-                   (animUrl.contains('svga') && !animUrl.contains('.svg') && !animUrl.endsWith('.svg'));
-    
+    final isSvga =
+        animUrl.endsWith('.svga') ||
+        animUrl.contains('.svga?') ||
+        animUrl.contains('.svga&') ||
+        (animUrl.contains('svga') &&
+            !animUrl.contains('.svg') &&
+            !animUrl.endsWith('.svg'));
+
     print("🎨 [CategoryBottomSheet] Checking if gift is SVGA:");
     print("   - Gift: ${gift.name}");
     print("   - Animation URL: ${gift.animationFile}");
     print("   - Is SVGA: $isSvga");
-    
+
     return isSvga;
   }
 }
@@ -1490,21 +1609,23 @@ class _GiftVideoPlayerWidgetState extends State<GiftVideoPlayerWidget> {
   Future<void> _initializeVideo() async {
     try {
       print("🎥 [GiftVideoPlayer] Initializing video: ${widget.videoUrl}");
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl));
-      
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.videoUrl),
+      );
+
       await _controller!.initialize();
-      
+
       // Set video to auto-play, loop, and be muted
       _controller!.setLooping(true);
       _controller!.setVolume(0.0); // Muted
       _controller!.play();
-      
+
       if (mounted) {
         setState(() {
           _isInitialized = true;
         });
       }
-      
+
       print("✅ [GiftVideoPlayer] Video initialized and playing");
     } catch (e) {
       print("❌ [GiftVideoPlayer] Error initializing video: $e");
@@ -1545,4 +1666,3 @@ class _GiftVideoPlayerWidgetState extends State<GiftVideoPlayerWidget> {
     );
   }
 }
-

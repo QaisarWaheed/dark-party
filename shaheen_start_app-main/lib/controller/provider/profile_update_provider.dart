@@ -72,8 +72,8 @@ String _normalizeProfileUrl(String? profileUrl) {
 class ProfileUpdateProvider with ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
-dynamic userCpData;
-Map<String, dynamic>? cpPartnerData;
+  dynamic userCpData;
+  Map<String, dynamic>? cpPartnerData;
   String? _userId;
   String? _userName;
   String? _country;
@@ -81,6 +81,7 @@ Map<String, dynamic>? cpPartnerData;
   String? _dob;
   String? _userImage;
   int? _merchant; // ✅ Merchant status
+  int? _wealthLevel; // ✅ Wealth Level
   int?
   _isAgencyAvailable; // ✅ Legacy: Agency availability status (for backward compatibility)
   AgencyInfo? _agencyInfo; // ✅ New: Complete agency information
@@ -96,6 +97,7 @@ Map<String, dynamic>? cpPartnerData;
   String? get dob => _dob;
   String? get profile_url => _userImage;
   int? get merchant => _merchant;
+  int? get wealthLevel => _wealthLevel; // ✅ Wealth level from login/user API
   int? get isAgencyAvailable => _isAgencyAvailable; // ✅ Legacy getter
   AgencyInfo? get agencyInfo => _agencyInfo; // ✅ New getter
   String? get email => _email;
@@ -417,9 +419,9 @@ Map<String, dynamic>? cpPartnerData;
     try {
       // ✅ Set loading state
       _isLoading = true;
-      
+
       //notifyListeners();
-      
+
       final prefs = await SharedPreferences.getInstance();
 
       // ✅ SMART TYPE HANDLING
@@ -553,6 +555,7 @@ Map<String, dynamic>? cpPartnerData;
             print("🖼️ ========== PROFILE IMAGE LOGIC END ==========");
 
             final merchantValue = userData.merchant;
+            final wealthLevelValue = userData.wealthLevel; // ✅ new wealth level
             final isAgencyAvailableValue = userData.isAgencyAvailable;
             final agencyInfoValue = userData.agencyInfo;
 
@@ -562,6 +565,10 @@ Map<String, dynamic>? cpPartnerData;
             print(
               "   - isMerchant: ${merchantValue != null && merchantValue > 0}",
             );
+
+            print("💰 Wealth Level Logic:");
+            print("   - Backend wealth_level: ${userData.wealthLevel}");
+            print("   - Final wealthLevelValue: $wealthLevelValue");
 
             print("🏢 Agency Information Logic:");
             print(
@@ -593,6 +600,7 @@ Map<String, dynamic>? cpPartnerData;
             _dob = dobValue;
             _userImage = imageValue;
             _merchant = merchantValue;
+            _wealthLevel = wealthLevelValue; // ✅ Update wealth level
             _isAgencyAvailable = isAgencyAvailableValue; // ✅ Legacy support
             _agencyInfo = agencyInfoValue; // ✅ New structure
             _email = emailValue;
@@ -628,6 +636,10 @@ Map<String, dynamic>? cpPartnerData;
               await prefs.setInt('merchant_$userId', merchantValue);
               print("   💾 Saved merchant status to cache: $merchantValue");
             }
+            if (wealthLevelValue != null) {
+              await prefs.setInt('wealth_level_$userId', wealthLevelValue);
+              print("   💾 Saved wealth level to cache: $wealthLevelValue");
+            }
 
             print("📊 Loaded FRESH data from backend for USER $userId:");
             print("   - Name: $_userName");
@@ -661,7 +673,7 @@ Map<String, dynamic>? cpPartnerData;
   }
 
   /// ✅ Fetch a specific user's data by userId (for viewing other users' profiles)
-  /// This method fetches user data from getAllUsers API instead of login API
+  /// This method fetches user data from getUserInfoById API (single user)
   Future<void> fetchUserDataByUserId(String targetUserId) async {
     try {
       // ✅ Set loading state
@@ -671,28 +683,22 @@ Map<String, dynamic>? cpPartnerData;
       print("📥 ========== FETCHING USER DATA BY ID ==========");
       print("📥 Target User ID: $targetUserId");
 
-      // ✅ Fetch all users from API
-      final allUsers = await ApiManager.getAllUsers();
-
-      if (allUsers.isEmpty) {
-        print("⚠️ No users returned from API");
+      final targetIdInt = int.tryParse(targetUserId);
+      if (targetIdInt == null) {
+        print("⚠️ Invalid target user id: $targetUserId");
+        _isLoading = false;
+        notifyListeners();
         return;
       }
 
-      // ✅ Find the target user in the list
-      final userData = allUsers.firstWhere((user) {
-        final userMap = user as Map<String, dynamic>;
-        final userId =
-            userMap['id']?.toString() ?? userMap['user_id']?.toString() ?? '';
-        return userId == targetUserId;
-      }, orElse: () => null);
-
-      if (userData == null) {
+      // ✅ Fetch a single user from API
+      final userMap = await ApiManager.getUserInfoById(targetIdInt);
+      if (userMap == null || userMap.isEmpty) {
         print("⚠️ User $targetUserId not found in API response");
+        _isLoading = false;
+        notifyListeners();
         return;
       }
-
-      final userMap = userData as Map<String, dynamic>;
 
       // ✅ Extract user data
       final nameValue =
@@ -717,6 +723,14 @@ Map<String, dynamic>? cpPartnerData;
         merchantValue = userMap['merchant'] is int
             ? userMap['merchant']
             : int.tryParse(userMap['merchant'].toString());
+      }
+
+      // ✅ Extract wealth_level
+      int? wealthLevelValue;
+      if (userMap['wealth_level'] != null) {
+        wealthLevelValue = userMap['wealth_level'] is int
+            ? userMap['wealth_level']
+            : int.tryParse(userMap['wealth_level'].toString());
       }
 
       // ✅ Extract is_agency_available status (LEGACY)
@@ -756,6 +770,7 @@ Map<String, dynamic>? cpPartnerData;
       _dob = dobValue;
       _userImage = imageValue;
       _merchant = merchantValue;
+      _wealthLevel = wealthLevelValue; // ✅ Update wealth level
       _isAgencyAvailable = isAgencyAvailableValue; // ✅ Legacy support
       _agencyInfo = agencyInfoValue; // ✅ New structure
       _email = emailValue;
@@ -783,12 +798,8 @@ Map<String, dynamic>? cpPartnerData;
     }
   }
 
-
-
-
   Future<void> fetchCpUserDataByUserId(String targetUserId) async {
     try {
-
       notifyListeners();
 
       print("📥 ========== FETCHING USER DATA BY ID ==========");
@@ -803,9 +814,9 @@ Map<String, dynamic>? cpPartnerData;
         print("⚠️ No users returned from API");
         return;
       }
-userCpData=false;
-cpPartnerData = null;
-notifyListeners();
+      userCpData = false;
+      cpPartnerData = null;
+      notifyListeners();
       // ✅ Find the target user in the list
       final userData = allUsers.firstWhere((user) {
         final userMap = user as Map<String, dynamic>;
@@ -814,65 +825,65 @@ notifyListeners();
         return userId == targetUserId;
       }, orElse: () => null);
 
-   
+      if (userData == null) {
+        userCpData = false;
+        cpPartnerData = null;
+        print("⚠️ User $targetUserId not found in API response");
+        _isLoading = false;
+        notifyListeners();
+        return;
+      } else {
+        userCpData = true;
 
-     if (userData == null) {
-userCpData=false;
-cpPartnerData = null;
-      print("⚠️ User $targetUserId not found in API response");
+        // ✅ Extract CP partner data from the nested cpUser object
+        final userMap = userData as Map<String, dynamic>;
+
+        print("📊 User Data Keys: ${userMap.keys.toList()}");
+        print("📊 Full User Data: ${jsonEncode(userMap)}");
+
+        // Check if cpUser exists in the response
+        if (userMap.containsKey('cpUser') && userMap['cpUser'] != null) {
+          cpPartnerData = userMap['cpUser'] as Map<String, dynamic>;
+          print("✅ Found CP Partner in cpUser field:");
+          print("   Partner Name: ${cpPartnerData!['name']}");
+          print("   Partner ID: ${cpPartnerData!['id']}");
+          print("   Partner Profile: ${cpPartnerData!['profile_url']}");
+        } else {
+          // Fallback: try to find by cp_partner_id
+          final partnerId = userMap['cp_partner_id']?.toString();
+
+          if (partnerId != null && partnerId.isNotEmpty && partnerId != '0') {
+            print("🔍 Searching for partner by ID: $partnerId");
+            // Find partner in the list
+            final partner = allUsers.firstWhere((user) {
+              final u = user as Map<String, dynamic>;
+              final uid = u['id']?.toString() ?? u['user_id']?.toString() ?? '';
+              return uid == partnerId;
+            }, orElse: () => null);
+
+            if (partner != null) {
+              cpPartnerData = partner as Map<String, dynamic>;
+              print(
+                "✅ Found CP Partner by ID search: ${cpPartnerData!['name']} (ID: $partnerId)",
+              );
+            } else {
+              print("⚠️ Partner ID $partnerId not found in users list");
+            }
+          } else {
+            print("⚠️ No CP partner data found for this user");
+          }
+        }
+
+        notifyListeners();
+      }
+
+      // ✅ Print the target user data
+      print("✅ Target User Data:");
+      print(jsonEncode(userData)); // prints full user info as JSON string
+
+      // ✅ Clear loading state
       _isLoading = false;
       notifyListeners();
-      return;
-    }else{
-      userCpData=true;
-      
-      // ✅ Extract CP partner data from the nested cpUser object
-      final userMap = userData as Map<String, dynamic>;
-      
-      print("📊 User Data Keys: ${userMap.keys.toList()}");
-      print("📊 Full User Data: ${jsonEncode(userMap)}");
-      
-      // Check if cpUser exists in the response
-      if (userMap.containsKey('cpUser') && userMap['cpUser'] != null) {
-        cpPartnerData = userMap['cpUser'] as Map<String, dynamic>;
-        print("✅ Found CP Partner in cpUser field:");
-        print("   Partner Name: ${cpPartnerData!['name']}");
-        print("   Partner ID: ${cpPartnerData!['id']}");
-        print("   Partner Profile: ${cpPartnerData!['profile_url']}");
-      } else {
-        // Fallback: try to find by cp_partner_id
-        final partnerId = userMap['cp_partner_id']?.toString();
-        
-        if (partnerId != null && partnerId.isNotEmpty && partnerId != '0') {
-          print("🔍 Searching for partner by ID: $partnerId");
-          // Find partner in the list
-          final partner = allUsers.firstWhere((user) {
-            final u = user as Map<String, dynamic>;
-            final uid = u['id']?.toString() ?? u['user_id']?.toString() ?? '';
-            return uid == partnerId;
-          }, orElse: () => null);
-          
-          if (partner != null) {
-            cpPartnerData = partner as Map<String, dynamic>;
-            print("✅ Found CP Partner by ID search: ${cpPartnerData!['name']} (ID: $partnerId)");
-          } else {
-            print("⚠️ Partner ID $partnerId not found in users list");
-          }
-        } else {
-          print("⚠️ No CP partner data found for this user");
-        }
-      }
-      
-      notifyListeners();
-    }
-
-    // ✅ Print the target user data
-    print("✅ Target User Data:");
-    print(jsonEncode(userData)); // prints full user info as JSON string
-
-    // ✅ Clear loading state
-    _isLoading = false;
-    notifyListeners();
       print("✅ ========== FETCH USER DATA BY ID COMPLETE ==========");
     } catch (e) {
       print("❌ Error fetching user data by ID: $e");
@@ -881,6 +892,7 @@ cpPartnerData = null;
       notifyListeners();
     }
   }
+
   /// ✅ Fetch user levels from API
   Future<void> fetchUserLevels(String userId) async {
     try {

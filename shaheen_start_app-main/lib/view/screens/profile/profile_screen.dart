@@ -111,7 +111,10 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
   void _loadProfileData() async {
     // Acquire providers
     final provider = Provider.of<ProfileUpdateProvider>(context, listen: false);
-    final followProvider = Provider.of<UserFollowProvider>(context, listen: false);
+    final followProvider = Provider.of<UserFollowProvider>(
+      context,
+      listen: false,
+    );
     final storeProvider = Provider.of<StoreProvider>(context, listen: false);
 
     // Get current logged-in user ID from SharedPreferences
@@ -151,12 +154,21 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
   @override
   Widget build(BuildContext context) {
     // When "Me" tab is visible, ensure we have current user's data (e.g. after viewing another user's profile)
-    final bottomProvider = Provider.of<BottomNavProvider>(context, listen: true);
+    final bottomProvider = Provider.of<BottomNavProvider>(
+      context,
+      listen: true,
+    );
     final isMeTabVisible = bottomProvider.currentIndex == 4;
     if (isMeTabVisible) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        final profileProvider = Provider.of<ProfileUpdateProvider>(context, listen: false);
-        final bannerProvider = Provider.of<BannerProvider>(context, listen: false);
+        final profileProvider = Provider.of<ProfileUpdateProvider>(
+          context,
+          listen: false,
+        );
+        final bannerProvider = Provider.of<BannerProvider>(
+          context,
+          listen: false,
+        );
         final prefs = SharedPreferences.getInstance();
         prefs.then((p) async {
           final currentId = p.get('user_id')?.toString();
@@ -185,25 +197,18 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
             return SingleChildScrollView(
               child: Column(
                 children: [
-                  // Header Section with Gradient Background
+                  // Header Section with White Background
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFFE8F5E9), // Light green
-                          Color(0xFFE3F2FD), // Light blue
-                        ],
-                      ),
-                    ),
+                    decoration: const BoxDecoration(color: Colors.white),
                     child: Column(
                       children: [
                         const SizedBox(height: 20),
                         // Profile Picture and User Info Row – both on left: avatar first, then user data
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment
+                              .start, // ✅ Top align to prevent shifting
                           children: [
                             // Profile Picture with Frame (left side)
                             Consumer<ProfileUpdateProvider>(
@@ -296,42 +301,78 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  // Host Badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF9C27B0), // Purple
-                                          Color(0xFFE91E63), // Pink
-                                        ],
+                                  // Wealth Level Badge
+                                  if (provider.wealthLevel != null)
+                                    Transform.translate(
+                                      offset: const Offset(
+                                        -28,
+                                        -12,
+                                      ), // ✅ Shifted more to the left
+                                      child: Container(
+                                        height: 75,
+                                        width: 130,
+                                        child: Stack(
+                                          alignment: Alignment.centerLeft,
+                                          children: [
+                                            Image.asset(
+                                              provider.wealthLevel! <= 20
+                                                  ? 'assets/images/level_1-to-20.png'
+                                                  : provider.wealthLevel! <= 50
+                                                  ? 'assets/images/level_21-to-50.png'
+                                                  : 'assets/images/level_51-to-100.png',
+                                              width: 130,
+                                              height: 75,
+                                              fit: BoxFit.fill,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                return Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.amber,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    "Lvl.${provider.wealthLevel}",
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                            // Level Number Text
+                                            Positioned(
+                                              right:
+                                                  20, // ✅ Moved text to the right (smaller right padding)
+                                              child: Text(
+                                                'Lvl.${provider.wealthLevel}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                  shadows: [
+                                                    Shadow(
+                                                      offset: Offset(0, 1),
+                                                      blurRadius: 2,
+                                                      color: Colors.black54,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.star,
-                                          size: 16,
-                                          color: Colors.white,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        const Text(
-                                          "Host",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -341,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                       ],
                     ),
                   ),
-                  
+
                   // User Statistics Card
                   Container(
                     margin: const EdgeInsets.all(16),
@@ -416,7 +457,6 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                       
                         const SizedBox(height: 12),
                         Consumer<BannerProvider>(
                           builder: (context, bannerProvider, _) {
@@ -424,7 +464,9 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               return SizedBox(
                                 height: 130,
                                 child: Center(
-                                  child: CircularProgressIndicator(color: Colors.amber.shade200),
+                                  child: CircularProgressIndicator(
+                                    color: Colors.amber.shade200,
+                                  ),
                                 ),
                               );
                             }
@@ -437,18 +479,34 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                   borderRadius: BorderRadius.circular(12),
                                   child: InkWell(
                                     onTap: () async {
-                                      final prefs = await SharedPreferences.getInstance();
-                                      final userId = prefs.get('user_id')?.toString() ?? prefs.getInt('user_id')?.toString() ?? '';
-                                      await bannerProvider.fetchBanners(userId.isEmpty ? '' : userId);
+                                      final prefs =
+                                          await SharedPreferences.getInstance();
+                                      final userId =
+                                          prefs.get('user_id')?.toString() ??
+                                          prefs.getInt('user_id')?.toString() ??
+                                          '';
+                                      await bannerProvider.fetchBanners(
+                                        userId.isEmpty ? '' : userId,
+                                      );
                                     },
                                     borderRadius: BorderRadius.circular(12),
                                     child: const Center(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.image_not_supported_outlined, color: Colors.white54, size: 28),
+                                          Icon(
+                                            Icons.image_not_supported_outlined,
+                                            color: Colors.white54,
+                                            size: 28,
+                                          ),
                                           SizedBox(height: 6),
-                                          Text('Tap to load banners', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                          Text(
+                                            'Tap to load banners',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -468,8 +526,12 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                     padEnds: false,
                                     enableInfiniteScroll: banners.length > 1,
                                     autoPlay: banners.length > 1,
-                                    autoPlayInterval: const Duration(seconds: 4),
-                                    autoPlayAnimationDuration: const Duration(milliseconds: 500),
+                                    autoPlayInterval: const Duration(
+                                      seconds: 4,
+                                    ),
+                                    autoPlayAnimationDuration: const Duration(
+                                      milliseconds: 500,
+                                    ),
                                     autoPlayCurve: Curves.linear,
                                     enlargeCenterPage: false,
                                   ),
@@ -478,9 +540,15 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                     return GestureDetector(
                                       onTap: () async {
                                         if (banner.redirectUrl.isNotEmpty) {
-                                          final uri = Uri.parse(banner.redirectUrl);
+                                          final uri = Uri.parse(
+                                            banner.redirectUrl,
+                                          );
                                           if (await canLaunchUrl(uri)) {
-                                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                            await launchUrl(
+                                              uri,
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
                                           }
                                         }
                                       },
@@ -533,7 +601,9 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 image: const DecorationImage(
-                                  image: AssetImage('assets/icons/coin_wallet_background.png'),
+                                  image: AssetImage(
+                                    'assets/icons/coin_wallet_background.png',
+                                  ),
                                   fit: BoxFit.cover,
                                 ),
                                 borderRadius: BorderRadius.circular(16),
@@ -549,7 +619,8 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                 children: [
                                   // textual content
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         "Coin wallet",
@@ -561,9 +632,12 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                       ),
                                       const SizedBox(height: 8),
                                       FutureBuilder(
-                                        future: ApiManager.getUserCoinsBalance(userId: userId),
+                                        future: ApiManager.getUserCoinsBalance(
+                                          userId: userId,
+                                        ),
                                         builder: (context, snapshot) {
-                                          if (snapshot.connectionState != ConnectionState.done) {
+                                          if (snapshot.connectionState !=
+                                              ConnectionState.done) {
                                             return const Text(
                                               '...',
                                               style: TextStyle(
@@ -573,7 +647,8 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                               ),
                                             );
                                           }
-                                          if (!snapshot.hasData || snapshot.data == null) {
+                                          if (!snapshot.hasData ||
+                                              snapshot.data == null) {
                                             return const Text(
                                               '0',
                                               style: TextStyle(
@@ -584,7 +659,10 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                             );
                                           }
                                           final resp = snapshot.data as dynamic;
-                                          final gold = resp.goldCoins ?? resp.balance ?? 0;
+                                          final gold =
+                                              resp.goldCoins ??
+                                              resp.balance ??
+                                              0;
                                           return Text(
                                             _formatCompactNumber(gold),
                                             style: const TextStyle(
@@ -630,7 +708,9 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 image: const DecorationImage(
-                                  image: AssetImage('assets/icons/diamonds_wallet_background.png'),
+                                  image: AssetImage(
+                                    'assets/icons/diamonds_wallet_background.png',
+                                  ),
                                   fit: BoxFit.cover,
                                 ),
                                 borderRadius: BorderRadius.circular(16),
@@ -645,7 +725,8 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               child: Stack(
                                 children: [
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         "Diamonds wallet",
@@ -665,9 +746,13 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                           ),
                                           const SizedBox(width: 4),
                                           FutureBuilder(
-                                            future: ApiManager.getUserCoinsBalance(userId: userId),
+                                            future:
+                                                ApiManager.getUserCoinsBalance(
+                                                  userId: userId,
+                                                ),
                                             builder: (context, snapshot) {
-                                              if (snapshot.connectionState != ConnectionState.done) {
+                                              if (snapshot.connectionState !=
+                                                  ConnectionState.done) {
                                                 return const Text(
                                                   '...',
                                                   style: TextStyle(
@@ -677,7 +762,8 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                                   ),
                                                 );
                                               }
-                                              if (!snapshot.hasData || snapshot.data == null) {
+                                              if (!snapshot.hasData ||
+                                                  snapshot.data == null) {
                                                 return const Text(
                                                   '0',
                                                   style: TextStyle(
@@ -687,8 +773,12 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                                   ),
                                                 );
                                               }
-                                              final resp = snapshot.data as dynamic;
-                                              final diamonds = resp.diamondCoins ?? resp.balance ?? 0;
+                                              final resp =
+                                                  snapshot.data as dynamic;
+                                              final diamonds =
+                                                  resp.diamondCoins ??
+                                                  resp.balance ??
+                                                  0;
                                               return Text(
                                                 _formatCompactNumber(diamonds),
                                                 style: const TextStyle(
@@ -772,9 +862,7 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                           label: "Store",
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => StoreScreen(),
-                            ),
+                            MaterialPageRoute(builder: (_) => StoreScreen()),
                           ),
                         ),
                       ],
@@ -851,7 +939,9 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) => AgencyProfileCenterScreen(
-                                    agency: Map<String, dynamic>.from(userAgency),
+                                    agency: Map<String, dynamic>.from(
+                                      userAgency,
+                                    ),
                                   ),
                                 ),
                               );
@@ -979,7 +1069,10 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                   // Dashboard shortcuts (moved from header)
                   if (provider.isMerchant || provider.hasAgencyAvailable)
                     Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -1008,7 +1101,11 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Icon(Icons.storefront, color: Colors.orange, size: 28),
+                                  Icon(
+                                    Icons.storefront,
+                                    color: Colors.orange,
+                                    size: 28,
+                                  ),
                                   SizedBox(height: 6),
                                   Text('Store', style: TextStyle(fontSize: 12)),
                                 ],
@@ -1017,16 +1114,21 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                           if (provider.hasAgencyAvailable)
                             InkWell(
                               onTap: () {
-                                final agencyProvider = Provider.of<AgencyProvider>(
-                                  context,
-                                  listen: false,
-                                );
+                                final agencyProvider =
+                                    Provider.of<AgencyProvider>(
+                                      context,
+                                      listen: false,
+                                    );
                                 final userAgency = agencyProvider.userAgency;
                                 if (userAgency != null) {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => AgencyProfileCenterScreen(agency: Map<String, dynamic>.from(userAgency)),
+                                      builder: (_) => AgencyProfileCenterScreen(
+                                        agency: Map<String, dynamic>.from(
+                                          userAgency,
+                                        ),
+                                      ),
                                     ),
                                   );
                                 } else {
@@ -1041,9 +1143,16 @@ class _ProfileScreenState extends State<ProfileScreen> with RouteAware {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: const [
-                                  Icon(Icons.business_center, color: Colors.orange, size: 28),
+                                  Icon(
+                                    Icons.business_center,
+                                    color: Colors.orange,
+                                    size: 28,
+                                  ),
                                   SizedBox(height: 6),
-                                  Text('Agency', style: TextStyle(fontSize: 12)),
+                                  Text(
+                                    'Agency',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ],
                               ),
                             ),
@@ -1243,11 +1352,7 @@ class _GridItem extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
 
-  const _GridItem({
-    this.image,
-    required this.label,
-    this.onTap,
-  });
+  const _GridItem({this.image, required this.label, this.onTap});
 
   ImageProvider _getSafeImageProvider(String? imagePath) {
     // ✅ Check for invalid values
@@ -1274,11 +1379,11 @@ class _GridItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
     final dpr = MediaQuery.of(context).devicePixelRatio;
-    
+
     // Responsive icon size: 4% of screen height (smaller, crisp DPR-aware)
     final iconSize = screenHeight * 0.04;
     final cacheWidth = (iconSize * dpr).toInt();
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -1289,10 +1394,7 @@ class _GridItem extends StatelessWidget {
               height: iconSize,
               width: iconSize,
               child: image!.toLowerCase().endsWith('.svg')
-                  ? SvgPicture.asset(
-                      image!,
-                      fit: BoxFit.contain,
-                    )
+                  ? SvgPicture.asset(image!, fit: BoxFit.contain)
                   : Image(
                       image: image!.startsWith('assets/')
                           ? ResizeImage(
@@ -1306,11 +1408,7 @@ class _GridItem extends StatelessWidget {
                     ),
             )
           else
-            Icon(
-              Icons.help_outline,
-              size: iconSize * 0.8,
-              color: Colors.grey,
-            ),
+            Icon(Icons.help_outline, size: iconSize * 0.8, color: Colors.grey),
           const SizedBox(height: 8),
           Text(
             label,
@@ -1331,10 +1429,7 @@ class _RankBadge extends StatelessWidget {
   final String rank;
   final Color color;
 
-  const _RankBadge({
-    required this.rank,
-    required this.color,
-  });
+  const _RankBadge({required this.rank, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1389,26 +1484,15 @@ class _MineListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
+            Icon(icon, color: iconColor, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.black,
-                ),
+                style: const TextStyle(fontSize: 16, color: Colors.black),
               ),
             ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Colors.grey,
-            ),
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
       ),
@@ -1470,10 +1554,7 @@ class _ListItem extends StatelessWidget {
         height: 32,
         width: 32,
         child: image.toLowerCase().endsWith('.svg')
-            ? SvgPicture.asset(
-                image,
-                fit: BoxFit.contain,
-              )
+            ? SvgPicture.asset(image, fit: BoxFit.contain)
             : Image(
                 image: _getSafeImageProvider(image),
                 fit: BoxFit.contain,

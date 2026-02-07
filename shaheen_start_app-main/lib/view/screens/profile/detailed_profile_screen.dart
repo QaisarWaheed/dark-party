@@ -169,103 +169,110 @@ class _DetailedProfileScreenState extends State<DetailedProfileScreen>
         left: false,
         right: false,
         child: Consumer<ProfileUpdateProvider>(
-        builder: (context, provider, _) {
-          if (provider.isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8C68FF)),
-              ),
-            );
-          }
+          builder: (context, provider, _) {
+            if (provider.isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8C68FF)),
+                ),
+              );
+            }
 
-          return Column(
-            children: [
-              Builder(
-                builder: (context) {
-                  final screenHeight = MediaQuery.of(context).size.height;
-                  return SizedBox(
-                    height: screenHeight * 0.18,
-                    width: double.infinity,
-                    child: Stack(
-                      fit: StackFit.expand,
+            return Column(
+              children: [
+                Builder(
+                  builder: (context) {
+                    final screenHeight = MediaQuery.of(context).size.height;
+                    return SizedBox(
+                      height: screenHeight * 0.18,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Positioned.fill(
+                            child: AppImage.asset(
+                              'assets/images/image.bg.jpg',
+                              fit: BoxFit.cover,
+                              alignment: Alignment.center,
+                            ),
+                          ),
+                          SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: const Icon(
+                                      Icons.arrow_back,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Builder(
+                                      builder: (ctx) {
+                                        final sh = MediaQuery.of(
+                                          ctx,
+                                        ).size.height;
+                                        return Text(
+                                          provider.username ?? 'Profile',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: sh * 0.025,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: Column(
                       children: [
-                        Positioned.fill(
-                          child: AppImage.asset(
-                            'assets/images/image.bg.jpg',
-                            fit: BoxFit.cover,
-                            alignment: Alignment.center,
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                          child: _ProfileHeaderCard(
+                            viewingUserId: viewingUserId,
                           ),
                         ),
-                        SafeArea(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(
-                                    Icons.arrow_back,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Builder(
-                                    builder: (ctx) {
-                                      final sh = MediaQuery.of(ctx).size.height;
-                                      return Text(
-                                        provider.username ?? 'Profile',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: sh * 0.025,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        const Expanded(child: ProfileTabView()),
                       ],
                     ),
-                  );
-                },
-              ),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                        child: _ProfileHeaderCard(viewingUserId: viewingUserId),
-                      ),
-                      const Expanded(child: ProfileTabView()),
-                    ],
                   ),
                 ),
-              ),
-            ],
-          );
-        },
-      )),
+              ],
+            );
+          },
+        ),
+      ),
       bottomNavigationBar: Builder(
         builder: (context) {
           // Use logged-in user ID, NOT profileProvider.userId (provider holds viewed user's data on this screen)
           final viewingId = widget.userId;
-          final isOwnProfile = viewingId == null || viewingId.isEmpty ||
+          final isOwnProfile =
+              viewingId == null ||
+              viewingId.isEmpty ||
               (_loggedInUserId != null && viewingId == _loggedInUserId);
           if (isOwnProfile) return const SizedBox.shrink();
           return SafeArea(
@@ -279,97 +286,173 @@ class _DetailedProfileScreenState extends State<DetailedProfileScreen>
                       onPressed: () async {
                         // Target is the viewed user
                         String? targetIdStr = widget.userId;
-                    if (targetIdStr == null || targetIdStr.isEmpty) {
-                      final profileProvider = Provider.of<ProfileUpdateProvider>(context, listen: false);
-                      targetIdStr = profileProvider.userId;
-                    }
+                        if (targetIdStr == null || targetIdStr.isEmpty) {
+                          final profileProvider =
+                              Provider.of<ProfileUpdateProvider>(
+                                context,
+                                listen: false,
+                              );
+                          targetIdStr = profileProvider.userId;
+                        }
 
-                    final targetUserId = int.tryParse(targetIdStr ?? '');
-                    if (targetUserId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to open chat: user id not found')));
-                      return;
-                    }
+                        final targetUserId = int.tryParse(targetIdStr ?? '');
+                        if (targetUserId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Unable to open chat: user id not found',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
 
-                    final chatProvider = Provider.of<UserChatProvider>(context, listen: false);
-                    // Ensure chat provider initialized (safe to call repeatedly)
-                    try {
-                      await chatProvider.initialize();
-                    } catch (_) {}
+                        final chatProvider = Provider.of<UserChatProvider>(
+                          context,
+                          listen: false,
+                        );
+                        // Ensure chat provider initialized (safe to call repeatedly)
+                        try {
+                          await chatProvider.initialize();
+                        } catch (_) {}
 
-                    // Try to find existing chatroom
-                    UserChatRoom? existing = chatProvider.getChatroomByUserId(targetUserId);
-                    UserChatRoom? room = existing;
-                    if (room == null) {
-                      // Create a new chatroom (will fall back to HTTP inside provider)
-                      room = await chatProvider.createChatroom(targetUserId);
-                    }
+                        // Try to find existing chatroom
+                        UserChatRoom? existing = chatProvider
+                            .getChatroomByUserId(targetUserId);
+                        UserChatRoom? room = existing;
+                        if (room == null) {
+                          // Create a new chatroom (will fall back to HTTP inside provider)
+                          room = await chatProvider.createChatroom(
+                            targetUserId,
+                          );
+                        }
 
-                    if (room != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => ChatScreen(chatRoom: room!)),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open chat. Try again later.')));
-                    }
-                  },
-                  icon: const Icon(Icons.chat_bubble_outline, color: Color(0xFF32A852)),
-                  label: const Text('Chat', style: TextStyle(color: Color(0xFF32A852))),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFF32A852)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () async {
-                    String? targetIdStr = widget.userId;
-                    if (targetIdStr == null || targetIdStr.isEmpty) {
-                      final profileProvider = Provider.of<ProfileUpdateProvider>(context, listen: false);
-                      targetIdStr = profileProvider.userId;
-                    }
-
-                    final targetUserId = int.tryParse(targetIdStr ?? '');
-                    if (targetUserId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unable to follow: user id not found')));
-                      return;
-                    }
-
-                    final followProvider = Provider.of<UserFollowProvider>(context, listen: false);
-                    // Ensure provider is initialized (no-op if already initialized)
-                    try {
-                      followProvider.initialize();
-                    } catch (_) {}
-
-                    final currentlyFollowing = followProvider.isFollowing(targetUserId);
-                    if (currentlyFollowing) {
-                      await followProvider.unfollowUser(targetUserId);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unfollow request sent')));
-                    } else {
-                      await followProvider.followUser(targetUserId);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Follow request sent')));
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF9FFF5A), Color(0xFF2DD24F)]),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                        if (room != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(chatRoom: room!),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not open chat. Try again later.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Color(0xFF32A852),
+                      ),
+                      label: const Text(
+                        'Chat',
+                        style: TextStyle(color: Color(0xFF32A852)),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Color(0xFF32A852)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                      ),
                     ),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: const [Icon(Icons.favorite, color: Colors.white), SizedBox(width: 8), Text('Follow', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () async {
+                        String? targetIdStr = widget.userId;
+                        if (targetIdStr == null || targetIdStr.isEmpty) {
+                          final profileProvider =
+                              Provider.of<ProfileUpdateProvider>(
+                                context,
+                                listen: false,
+                              );
+                          targetIdStr = profileProvider.userId;
+                        }
+
+                        final targetUserId = int.tryParse(targetIdStr ?? '');
+                        if (targetUserId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Unable to follow: user id not found',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final followProvider = Provider.of<UserFollowProvider>(
+                          context,
+                          listen: false,
+                        );
+                        // Ensure provider is initialized (no-op if already initialized)
+                        try {
+                          followProvider.initialize();
+                        } catch (_) {}
+
+                        final currentlyFollowing = followProvider.isFollowing(
+                          targetUserId,
+                        );
+                        if (currentlyFollowing) {
+                          await followProvider.unfollowUser(targetUserId);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Unfollow request sent'),
+                            ),
+                          );
+                        } else {
+                          await followProvider.followUser(targetUserId);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Follow request sent'),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF9FFF5A), Color(0xFF2DD24F)],
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.favorite, color: Colors.white),
+                            SizedBox(width: 8),
+                            Text(
+                              'Follow',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      );
+            ),
+          );
         },
-    ),
+      ),
     );
   }
 }
@@ -392,12 +475,15 @@ class _ProfileHeaderCard extends StatelessWidget {
         final countryFlag = CountryFlagUtils.getFlagEmoji(country);
 
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ProfileWithFrame(
-              size: 64,
-              profileUrl: provider.profile_url,
-              userId: viewingUserId ?? provider.userId,
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: ProfileWithFrame(
+                size: 64,
+                profileUrl: provider.profile_url,
+                userId: viewingUserId ?? provider.userId,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -427,43 +513,72 @@ class _ProfileHeaderCard extends StatelessWidget {
                       Text(countryFlag, style: TextStyle(fontSize: 14)),
                     ],
                   ),
-                  if (provider.tags.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: provider.tags.map((tag) {
-                        return SizedBox(
-                          width: MediaQuery.of(context).size.width * 0.28,
-                          height: 51.5,
-                          child: Stack(
-                            alignment: Alignment.centerLeft,
-                            children: [
-                              AppImage.asset(
-                                'assets/images/tag.png',
-                                width: MediaQuery.of(context).size.width * 0.28,
-                                height: 51.5,
-                                fit: BoxFit.contain,
-                              ),
-                              Positioned.fill(
-                                child: Center(
+                  // Wealth Level Badge
+                  if (provider.wealthLevel != null)
+                    Transform.translate(
+                      offset: const Offset(
+                        -28,
+                        -8,
+                      ), // ✅ Shifted left and slightly up
+                      child: Container(
+                        height: 65, // ✅ Reduced height to minimize space
+                        width: 140,
+                        child: Stack(
+                          alignment: Alignment.centerLeft,
+                          children: [
+                            Image.asset(
+                              provider.wealthLevel! <= 20
+                                  ? 'assets/images/level_1-to-20.png'
+                                  : provider.wealthLevel! <= 50
+                                  ? 'assets/images/level_21-to-50.png'
+                                  : 'assets/images/level_51-to-100.png',
+                              width: 140,
+                              height: 65,
+                              fit: BoxFit.fill,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                   child: Text(
-                                    tag.toString(),
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    "Lvl.${provider.wealthLevel}",
+                                    style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: MediaQuery.of(context).size.height * 0.012,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
                                     ),
                                   ),
+                                );
+                              },
+                            ),
+                            // Level Number Text
+                            Positioned(
+                              right: 25,
+                              child: Text(
+                                'Lv.${provider.wealthLevel}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      offset: Offset(0, 1),
+                                      blurRadius: 2,
+                                      color: Colors.black54,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -534,10 +649,16 @@ class ProfileTabView extends StatelessWidget {
                     child: TextField(
                       decoration: InputDecoration(
                         hintText: 'Say something...',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
+                        hintStyle: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                       ),
                       style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
@@ -545,145 +666,152 @@ class ProfileTabView extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _statItem('Visitor', 0),
-                    _statItem('Follow', followersCount),
-                    _statItem('Fans', followingCount),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                const Divider(height: 1),
-                const SizedBox(height: 14),
-                // ✅ Use actual IntimacyTabView with Consumer instead of static image
-                IntimacyTabView(userId: userId ?? provider.userId),
-                const SizedBox(height: 14),
-                const Text(
-                  'Supporter',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: AppImage.asset(
-                    'assets/images/supporterplaceholder.png',
-                    width: double.infinity,
-                    height: 110,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: const [
-                    _ProfileMiniTab(label: 'Gift', isSelected: true),
-                    _ProfileMiniTab(label: 'Badge'),
-                    _ProfileMiniTab(label: 'headwear'),
-                    _ProfileMiniTab(label: 'Ride'),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Center(
-                  child: Text(
-                    "Haven't received a gift yet",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Dashboard shortcuts (moved from header)
-                if (provider.isMerchant || provider.hasAgencyAvailable)
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        if (provider.isMerchant)
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => StoreScreen(),
-                                ),
-                              );
-                            },
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(
-                                  Icons.storefront,
-                                  color: Colors.orange,
-                                  size: 28,
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  'Merchant',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (provider.hasAgencyAvailable)
-                          InkWell(
-                            onTap: () {
-                              final agencyProvider =
-                                  Provider.of<AgencyProvider>(
-                                    context,
-                                    listen: false,
-                                  );
-                              final userAgency = agencyProvider.userAgency;
-                              if (userAgency != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AgencyProfileCenterScreen(
-                                      agency: userAgency,
-                                    ),
-                                  ),
-                                );
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const AllAgencyScreen(),
-                                  ),
-                                );
-                              }
-                            },
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Icon(
-                                  Icons.business_center,
-                                  color: Colors.orange,
-                                  size: 28,
-                                ),
-                                SizedBox(height: 6),
-                                Text('Agency', style: TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                          ),
+                        _statItem('Visitor', 0),
+                        _statItem('Follow', followersCount),
+                        _statItem('Fans', followingCount),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 14),
+                    const Divider(height: 1),
+                    const SizedBox(height: 14),
+                    // ✅ Use actual IntimacyTabView with Consumer instead of static image
+                    IntimacyTabView(userId: userId ?? provider.userId),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Supporter',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AppImage.asset(
+                        'assets/images/supporterplaceholder.png',
+                        width: double.infinity,
+                        height: 110,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: const [
+                        _ProfileMiniTab(label: 'Gift', isSelected: true),
+                        _ProfileMiniTab(label: 'Badge'),
+                        _ProfileMiniTab(label: 'headwear'),
+                        _ProfileMiniTab(label: 'Ride'),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Center(
+                      child: Text(
+                        "Haven't received a gift yet",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Dashboard shortcuts (moved from header)
+                    if (provider.isMerchant || provider.hasAgencyAvailable)
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            if (provider.isMerchant)
+                              InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => StoreScreen(),
+                                    ),
+                                  );
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.storefront,
+                                      color: Colors.orange,
+                                      size: 28,
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      'Merchant',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (provider.hasAgencyAvailable)
+                              InkWell(
+                                onTap: () {
+                                  final agencyProvider =
+                                      Provider.of<AgencyProvider>(
+                                        context,
+                                        listen: false,
+                                      );
+                                  final userAgency = agencyProvider.userAgency;
+                                  if (userAgency != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            AgencyProfileCenterScreen(
+                                              agency: userAgency,
+                                            ),
+                                      ),
+                                    );
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const AllAgencyScreen(),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.business_center,
+                                      color: Colors.orange,
+                                      size: 28,
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      'Agency',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -741,7 +869,10 @@ Widget _statItem(String label, int value) {
       Builder(
         builder: (ctx) {
           final sh = MediaQuery.of(ctx).size.height;
-          return Text(label, style: TextStyle(color: Colors.grey, fontSize: sh * 0.014));
+          return Text(
+            label,
+            style: TextStyle(color: Colors.grey, fontSize: sh * 0.014),
+          );
         },
       ),
     ],
@@ -775,7 +906,10 @@ class IntimacyTabView extends StatelessWidget {
             children: [
               Text(
                 "CP",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: MediaQuery.of(context).size.height * 0.020),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: MediaQuery.of(context).size.height * 0.020,
+                ),
               ),
               const SizedBox(height: 10),
               ClipRRect(
@@ -975,7 +1109,10 @@ class IntimacyTabView extends StatelessWidget {
                     final sh = MediaQuery.of(ctx).size.height;
                     return Text(
                       "Terminate CP Relationship",
-                      style: TextStyle(fontSize: sh * 0.023, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: sh * 0.023,
+                        fontWeight: FontWeight.bold,
+                      ),
                     );
                   },
                 ),
@@ -989,7 +1126,10 @@ class IntimacyTabView extends StatelessWidget {
                       "After the CP relationship terminates, you will return to ordinary friends. "
                       "You cannot continue to complete CP tasks or have CP nests and other privileges.",
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: sh * 0.018, color: Colors.black87),
+                      style: TextStyle(
+                        fontSize: sh * 0.018,
+                        color: Colors.black87,
+                      ),
                     );
                   },
                 ),
@@ -1159,7 +1299,10 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                   final sh = MediaQuery.of(ctx).size.height;
                   return Text(
                     'Are you sure you want to remove your CP partner?',
-                    style: TextStyle(fontSize: sh * 0.020, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: sh * 0.020,
+                      fontWeight: FontWeight.w500,
+                    ),
                   );
                 },
               ),
@@ -1338,12 +1481,14 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
         // Show "Remove CP Partner" only when both users are CP partners (use API data)
         // Either: viewing own profile and have a CP partner, OR: viewing the profile of our CP partner
         final viewingUserIdStr = widget.userId?.trim();
-        final isViewingCpPartnerProfile = hasCpData &&
+        final isViewingCpPartnerProfile =
+            hasCpData &&
             cpPartner != null &&
             viewingUserIdStr != null &&
             viewingUserIdStr.isNotEmpty &&
             cpPartner.id.toString() == viewingUserIdStr;
-        final canShowRemoveCpButton = hasCpData &&
+        final canShowRemoveCpButton =
+            hasCpData &&
             cpPartner != null &&
             (isOwnProfile || isViewingCpPartnerProfile);
 
@@ -1411,13 +1556,20 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
 
                           // Crown → heart (profiles in eyes) → name tags below → value badge → bottom panel
                           final crownTop = screenHeight * 0.04;
-                          final crownWidth = (screenWidth * 0.92).clamp(260.0, 380.0);
-                          final crownHeight = crownWidth * 1.15; // Increased height ratio for better fit
+                          final crownWidth = (screenWidth * 0.92).clamp(
+                            260.0,
+                            380.0,
+                          );
+                          final crownHeight =
+                              crownWidth *
+                              1.15; // Increased height ratio for better fit
                           final crownLeft = (screenWidth - crownWidth) / 2;
-                          final avatarSize = crownWidth * 0.23; // Larger avatars
+                          final avatarSize =
+                              crownWidth * 0.23; // Larger avatars
                           final nameBarWidth = crownWidth * 0.34;
                           final nameBarHeight = crownHeight * 0.12;
-                          final buttonTop = 8.0 + MediaQuery.of(context).padding.top;
+                          final buttonTop =
+                              8.0 + MediaQuery.of(context).padding.top;
 
                           return Stack(
                             children: [
@@ -1443,7 +1595,9 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                         top: crownHeight * 0.40,
                                         left: crownWidth * 0.22,
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(100),
+                                          borderRadius: BorderRadius.circular(
+                                            100,
+                                          ),
                                           child: currentUserProfile.isEmpty
                                               ? Container(
                                                   width: avatarSize,
@@ -1463,26 +1617,32 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                                   width: avatarSize,
                                                   height: avatarSize,
                                                   memCacheWidth:
-                                                      (avatarSize * dpr).round(),
+                                                      (avatarSize * dpr)
+                                                          .round(),
                                                   memCacheHeight:
-                                                      (avatarSize * dpr).round(),
+                                                      (avatarSize * dpr)
+                                                          .round(),
                                                   fit: BoxFit.cover,
                                                   placeholder: (context, url) =>
                                                       Container(
-                                                    color: Colors.white24,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                  errorWidget: (context, url, error) =>
-                                                      Container(
-                                                    color: Colors.white24,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
+                                                        color: Colors.white24,
+                                                        child: Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                  errorWidget:
+                                                      (
+                                                        context,
+                                                        url,
+                                                        error,
+                                                      ) => Container(
+                                                        color: Colors.white24,
+                                                        child: Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
                                                 ),
                                         ),
                                       ),
@@ -1491,7 +1651,9 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                         top: crownHeight * 0.40,
                                         right: crownWidth * 0.22,
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(100),
+                                          borderRadius: BorderRadius.circular(
+                                            100,
+                                          ),
                                           child: !hasCpData || cpPartner == null
                                               ? Container(
                                                   width: avatarSize,
@@ -1511,26 +1673,32 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                                   width: avatarSize,
                                                   height: avatarSize,
                                                   memCacheWidth:
-                                                      (avatarSize * dpr).round(),
+                                                      (avatarSize * dpr)
+                                                          .round(),
                                                   memCacheHeight:
-                                                      (avatarSize * dpr).round(),
+                                                      (avatarSize * dpr)
+                                                          .round(),
                                                   fit: BoxFit.cover,
                                                   placeholder: (context, url) =>
                                                       Container(
-                                                    color: Colors.white24,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                  errorWidget: (context, url, error) =>
-                                                      Container(
-                                                    color: Colors.white24,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
+                                                        color: Colors.white24,
+                                                        child: Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                  errorWidget:
+                                                      (
+                                                        context,
+                                                        url,
+                                                        error,
+                                                      ) => Container(
+                                                        color: Colors.white24,
+                                                        child: Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
                                                 ),
                                         ),
                                       ),
@@ -1559,29 +1727,44 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                             ),
                                             Padding(
                                               padding: EdgeInsets.symmetric(
-                                                  horizontal: 10 * scale),
-                                              child:
-                                                  Consumer<ProfileUpdateProvider>(
-                                                builder: (_, profileProvider, __) {
-                                                  final userName =
-                                                      profileProvider.username ??
-                                                          'Mr.dark';
-                                                  return FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    child: Text(
-                                                      userName,
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 11 * scale,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  );
-                                                },
+                                                horizontal: 10 * scale,
                                               ),
+                                              child:
+                                                  Consumer<
+                                                    ProfileUpdateProvider
+                                                  >(
+                                                    builder:
+                                                        (
+                                                          _,
+                                                          profileProvider,
+                                                          __,
+                                                        ) {
+                                                          final userName =
+                                                              profileProvider
+                                                                  .username ??
+                                                              'Mr.dark';
+                                                          return FittedBox(
+                                                            fit: BoxFit
+                                                                .scaleDown,
+                                                            child: Text(
+                                                              userName,
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize:
+                                                                    11 * scale,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          );
+                                                        },
+                                                  ),
                                             ),
                                           ],
                                         ),
@@ -1601,28 +1784,42 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                             ),
                                             Padding(
                                               padding: EdgeInsets.symmetric(
-                                                  horizontal: 10 * scale),
+                                                horizontal: 10 * scale,
+                                              ),
                                               child: Consumer<CpProvider>(
-                                                builder: (context, cpProvider, child) {
-                                                  final cpName = cpProvider.users.isNotEmpty
-                                                      ? cpProvider.users[0].cpUser?.name ??
-                                                          "r'o♥"
-                                                      : "r'o♥";
-                                                  return FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    child: Text(
-                                                      cpName,
-                                                      style: TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 11 * scale,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  );
-                                                },
+                                                builder:
+                                                    (
+                                                      context,
+                                                      cpProvider,
+                                                      child,
+                                                    ) {
+                                                      final cpName =
+                                                          cpProvider
+                                                              .users
+                                                              .isNotEmpty
+                                                          ? cpProvider
+                                                                    .users[0]
+                                                                    .cpUser
+                                                                    ?.name ??
+                                                                "r'o♥"
+                                                          : "r'o♥";
+                                                      return FittedBox(
+                                                        fit: BoxFit.scaleDown,
+                                                        child: Text(
+                                                          cpName,
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                            fontSize:
+                                                                11 * scale,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      );
+                                                    },
                                               ),
                                             ),
                                           ],
@@ -1636,7 +1833,7 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                             horizontal: 16 * scale,
                                             vertical: 6 * scale,
                                           ),
-                                         
+
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
@@ -1659,11 +1856,10 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                                   fontWeight: FontWeight.bold,
                                                   shadows: [
                                                     BoxShadow(
-                                                      color:
-                                                          Colors.black38,
+                                                      color: Colors.black38,
                                                       blurRadius: 2,
                                                       offset: Offset(0, 1),
-                                                    )
+                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -1705,7 +1901,10 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                 bottom: 0,
                                 left: 0,
                                 right: 0,
-                                height: (screenHeight * 0.42).clamp(270.0, 360.0),
+                                height: (screenHeight * 0.42).clamp(
+                                  270.0,
+                                  360.0,
+                                ),
                                 child: ClipRect(
                                   child: Stack(
                                     fit: StackFit.expand,
@@ -1721,17 +1920,24 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                           28 * scale,
                                           72 * scale,
                                           28 * scale,
-                                          (10 * scale) + MediaQuery.of(context).padding.bottom,
+                                          (10 * scale) +
+                                              MediaQuery.of(
+                                                context,
+                                              ).padding.bottom,
                                         ),
                                         child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.start,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
                                           children: [
                                             if (hasCpData) ...[
                                               Text(
                                                 'We have been together for',
                                                 style: TextStyle(
-                                                  color: const Color(0xFF001F5F),
+                                                  color: const Color(
+                                                    0xFF001F5F,
+                                                  ),
                                                   fontSize: 13 * scale,
                                                   fontWeight: FontWeight.w900,
                                                 ),
@@ -1739,27 +1945,43 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                               ),
                                               SizedBox(height: 0),
                                               Row(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                crossAxisAlignment: CrossAxisAlignment.baseline,
-                                                textBaseline: TextBaseline.alphabetic,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.baseline,
+                                                textBaseline:
+                                                    TextBaseline.alphabetic,
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
                                                   Text(
                                                     '$daysTogether',
                                                     style: TextStyle(
-                                                      color: const Color(0xFFFFD700),
+                                                      color: const Color(
+                                                        0xFFFFD700,
+                                                      ),
                                                       fontSize: 42 * scale,
-                                                      fontWeight: FontWeight.w900,
+                                                      fontWeight:
+                                                          FontWeight.w900,
                                                       height: 1.1,
                                                       shadows: [
                                                         Shadow(
-                                                          color: Colors.orange.shade900,
-                                                          offset: const Offset(2, 2),
+                                                          color: Colors
+                                                              .orange
+                                                              .shade900,
+                                                          offset: const Offset(
+                                                            2,
+                                                            2,
+                                                          ),
                                                           blurRadius: 0,
                                                         ),
                                                         Shadow(
-                                                          color: Colors.yellow.shade100,
-                                                          offset: const Offset(-1.5, -1.5),
+                                                          color: Colors
+                                                              .yellow
+                                                              .shade100,
+                                                          offset: const Offset(
+                                                            -1.5,
+                                                            -1.5,
+                                                          ),
                                                           blurRadius: 0,
                                                         ),
                                                       ],
@@ -1769,14 +1991,20 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                                   Text(
                                                     'days',
                                                     style: TextStyle(
-                                                      color: const Color(0xFFFFFF00),
+                                                      color: const Color(
+                                                        0xFFFFFF00,
+                                                      ),
                                                       fontSize: 16 * scale,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       height: 1.25,
                                                       shadows: [
                                                         Shadow(
                                                           color: Colors.black12,
-                                                          offset: const Offset(1, 1),
+                                                          offset: const Offset(
+                                                            1,
+                                                            1,
+                                                          ),
                                                           blurRadius: 1,
                                                         ),
                                                       ],
@@ -1788,7 +2016,9 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                               Text(
                                                 'CP monthly ranking',
                                                 style: TextStyle(
-                                                  color: const Color(0xFF001F5F),
+                                                  color: const Color(
+                                                    0xFF001F5F,
+                                                  ),
                                                   fontSize: 13 * scale,
                                                   fontWeight: FontWeight.w900,
                                                 ),
@@ -1797,19 +2027,31 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                               Text(
                                                 '30',
                                                 style: TextStyle(
-                                                  color: const Color(0xFFFFD700),
+                                                  color: const Color(
+                                                    0xFFFFD700,
+                                                  ),
                                                   fontSize: 42 * scale,
                                                   fontWeight: FontWeight.w900,
                                                   height: 1.0,
                                                   shadows: [
                                                     Shadow(
-                                                      color: Colors.orange.shade900,
-                                                      offset: const Offset(2, 2),
+                                                      color: Colors
+                                                          .orange
+                                                          .shade900,
+                                                      offset: const Offset(
+                                                        2,
+                                                        2,
+                                                      ),
                                                       blurRadius: 0,
                                                     ),
                                                     Shadow(
-                                                      color: Colors.yellow.shade100,
-                                                      offset: const Offset(-1.5, -1.5),
+                                                      color: Colors
+                                                          .yellow
+                                                          .shade100,
+                                                      offset: const Offset(
+                                                        -1.5,
+                                                        -1.5,
+                                                      ),
                                                       blurRadius: 0,
                                                     ),
                                                   ],
@@ -1838,13 +2080,17 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                                   ),
                                                 ),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.red.shade600,
+                                                  backgroundColor:
+                                                      Colors.red.shade600,
                                                   padding: EdgeInsets.symmetric(
                                                     horizontal: 14 * scale,
                                                     vertical: 8 * scale,
                                                   ),
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(25),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          25,
+                                                        ),
                                                   ),
                                                 ),
                                               ),
@@ -1856,7 +2102,6 @@ class _CpDetailsScreenState extends State<CpDetailsScreen> {
                                   ),
                                 ),
                               ),
-
                             ],
                           );
                         },

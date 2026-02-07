@@ -4,11 +4,18 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:collection';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:shaheen_star_app/components/app_image.dart';
 import 'package:shaheen_star_app/components/category_bottom_sheet.dart';
 import 'package:shaheen_star_app/components/gift_animation_overlay.dart';
@@ -25,24 +32,20 @@ import 'package:shaheen_star_app/controller/provider/get_all_room_provider.dart'
 import 'package:shaheen_star_app/controller/provider/join_room_provider.dart';
 import 'package:shaheen_star_app/controller/provider/leave_room_provider.dart';
 import 'package:shaheen_star_app/controller/provider/profile_update_provider.dart';
-import 'package:shaheen_star_app/controller/provider/user_message_provider.dart';
 import 'package:shaheen_star_app/controller/provider/room_message_provider.dart';
-import 'package:shaheen_star_app/controller/provider/user_chat_provider.dart';
 import 'package:shaheen_star_app/controller/provider/seat_provider.dart';
+import 'package:shaheen_star_app/controller/provider/user_chat_provider.dart';
+import 'package:shaheen_star_app/controller/provider/user_message_provider.dart';
 import 'package:shaheen_star_app/controller/provider/zego_voice_provider.dart';
 import 'package:shaheen_star_app/model/gift_model.dart';
 import 'package:shaheen_star_app/model/seat_model.dart';
 import 'package:shaheen_star_app/model/send_message_room_model.dart';
 import 'package:shaheen_star_app/utils/user_id_utils.dart';
+import 'package:shaheen_star_app/utils/country_utils.dart';
 import 'package:shaheen_star_app/view/screens/room/room_bootom_sheet_content.dart';
 import 'package:shaheen_star_app/view/screens/room/room_ranking_screen.dart';
-import 'package:shaheen_star_app/view/screens/widget/cached_network_image.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter/services.dart';
-import 'dart:collection';
 import 'package:shaheen_star_app/view/screens/user_chat/user_chat_list_screen.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:shaheen_star_app/view/screens/widget/cached_network_image.dart';
 
 import '../../../controller/api_manager/number_format.dart';
 import '../../../controller/provider/store_provider.dart';
@@ -70,6 +73,20 @@ class RoomScreen extends StatefulWidget {
   State<RoomScreen> createState() => _RoomScreenState();
 }
 
+class _LuckyGiftSnapshot {
+  final String senderName;
+  final String senderAvatar;
+  final String giftName;
+  final double baseTotal;
+
+  const _LuckyGiftSnapshot({
+    required this.senderName,
+    required this.senderAvatar,
+    required this.giftName,
+    required this.baseTotal,
+  });
+}
+
 class _RoomScreenState extends State<RoomScreen> {
   bool _showAnnouncement = true;
 
@@ -78,12 +95,15 @@ class _RoomScreenState extends State<RoomScreen> {
   int _luckyMultiplier = 0;
   double _luckyReward = 0;
   double _luckyGiftPrice = 0;
+  String _luckySenderName = 'User';
   Timer? _luckyBannerTimer;
+  final Map<String, _LuckyGiftSnapshot> _luckyGiftSnapshots = {};
 
   final TextEditingController _messageController = TextEditingController();
   String? totalCoins = "0.0";
   String? _currentUserId; // Google ID
   String? _databaseUserId; // Database user_id for WebSocket actions
+  String? _baishunUserId; // Game user_id (no leading zeros)
   bool _isInitializing = true;
   late String _displayRoomName;
   late String? _displayRoomProfileUrl;
@@ -126,6 +146,33 @@ class _RoomScreenState extends State<RoomScreen> {
     return '${ApiConstants.baseUrl}$url';
   }
 
+  String _normalizeBaishunUserId(String? userId) {
+    if (userId == null || userId.isEmpty) return '';
+    final stripped = userId.replaceFirst(RegExp(r'^0+'), '');
+    return stripped.isEmpty ? userId : stripped;
+  }
+
+  String _resolveBaishunCountryCode() {
+    String? raw = _currentGameUserInfo?['country']?.toString();
+    if (raw == null || raw.trim().isEmpty) {
+      raw = _currentGameUserInfo?['country_code']?.toString();
+    }
+    if (raw == null || raw.trim().isEmpty) {
+      try {
+        final profile = Provider.of<ProfileUpdateProvider>(
+          context,
+          listen: false,
+        );
+        raw = profile.country;
+      } catch (_) {
+        raw = null;
+      }
+    }
+    final cleaned = raw?.trim() ?? '';
+    if (cleaned.length == 2) return cleaned.toUpperCase();
+    return CountryUtils.getCountryCode(cleaned) ?? 'PK';
+  }
+
   // Game integration constants (provided)
   static const String _appChannel = 'shaheen';
   static const String _appName = 'shaheen_app';
@@ -160,8 +207,10 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  /// BAISHUN doc: "injecting API with the help of JSBridge" - NativeBridge must exist BEFORE game scripts run.
-  /// Injected at AT_DOCUMENT_START. If bridge not ready yet, getConfig is queued and retried until ready (fixes stuck games).
+  /// BAISHUN doc: "injecting API with the help of JSBridge" - NativeBridge must
+  /// exist BEFORE game scripts run.
+  /// Injected at AT_DOCUMENT_START. If bridge not ready yet, getConfig is queued
+  /// and retried until ready (fixes stuck games).
   static const String _kBaishunNativeBridgeAtDocumentStart = r'''(function(){
 try {
   if(window.NativeBridge && window.NativeBridge.getConfig) return;
@@ -213,44 +262,84 @@ try {
   void _logGameConfigSent({Map<String, dynamic>? config}) {
     final Map<String, dynamic> data = config ?? {};
     if (config == null) {
-      if (_currentGameSessionSstoken != null && _currentGameSessionSstoken!.isNotEmpty) {
+      if (_currentGameSessionSstoken != null &&
+          _currentGameSessionSstoken!.isNotEmpty) {
         data['ss_token'] = _currentGameSessionSstoken;
       }
-      data['uid'] = _databaseUserId ?? '';
+      data['uid'] = _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId);
       if (_currentGameUserInfo != null && _currentGameUserInfo!.isNotEmpty) {
         final ui = _currentGameUserInfo!;
-        if (ui['user_name'] != null) data['user_name'] = ui['user_name'].toString();
-        if (ui['userName'] != null) data['userName'] = ui['userName'].toString();
+        if (ui['user_name'] != null)
+          data['user_name'] = ui['user_name'].toString();
+        if (ui['userName'] != null)
+          data['userName'] = ui['userName'].toString();
         if (ui['balance'] != null) data['balance'] = ui['balance'];
-        if (ui['user_avatar'] != null) data['user_avatar'] = ui['user_avatar'].toString().length > 50 ? '${ui['user_avatar'].toString().substring(0, 50)}...' : ui['user_avatar'].toString();
+        if (ui['user_avatar'] != null)
+          data['user_avatar'] = ui['user_avatar'].toString().length > 50
+              ? '${ui['user_avatar'].toString().substring(0, 50)}...'
+              : ui['user_avatar'].toString();
       }
     }
     final token = data['ss_token']?.toString() ?? '';
-    final maskedToken = token.isEmpty ? '(empty)' : (token.length <= 16 ? token : '${token.substring(0, 8)}...${token.length > 12 ? token.substring(token.length - 4) : ""}');
-    print('[RoomScreen] 🎮 [GAME CONFIG] ========== User info & ss_token sent to game ==========');
-    print('[RoomScreen] 🎮 [GAME CONFIG] user_name: ${data['user_name'] ?? "(not set)"}');
-    print('[RoomScreen] 🎮 [GAME CONFIG] userName:   ${data['userName'] ?? "(not set)"}');
-    print('[RoomScreen] 🎮 [GAME CONFIG] balance:  ${data['balance'] ?? "(not set)"}');
-    print('[RoomScreen] 🎮 [GAME CONFIG] uid:      ${data['uid'] ?? "(not set)"}');
-    print('[RoomScreen] 🎮 [GAME CONFIG] user_avatar: ${data['user_avatar'] != null ? (data['user_avatar'].toString().length > 60 ? "yes (${data['user_avatar'].toString().length} chars)" : data['user_avatar']) : "(not set)"}');
+    final maskedToken = token.isEmpty
+        ? '(empty)'
+        : (token.length <= 16
+              ? token
+              : '${token.substring(0, 8)}...${token.length > 12 ? token.substring(token.length - 4) : ""}');
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] ========== User info & ss_token sent to game ==========',
+    );
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] user_name: ${data['user_name'] ?? "(not set)"}',
+    );
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] userName:   ${data['userName'] ?? "(not set)"}',
+    );
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] balance:  ${data['balance'] ?? "(not set)"}',
+    );
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] uid:      ${data['uid'] ?? "(not set)"}',
+    );
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] user_avatar: ${data['user_avatar'] != null ? (data['user_avatar'].toString().length > 60 ? "yes (${data['user_avatar'].toString().length} chars)" : data['user_avatar']) : "(not set)"}',
+    );
     print('[RoomScreen] 🎮 [GAME CONFIG] ss_token: $maskedToken');
-    print('[RoomScreen] 🎮 [GAME CONFIG] ============================================================');
+    print(
+      '[RoomScreen] 🎮 [GAME CONFIG] ============================================================',
+    );
   }
 
   /// Normalizes backend get_user_info response so getConfig always has user_name, userName, balance, user_avatar.
   /// Backend may return nickname/name/username, coins/balance, avatar/profile_pic etc.
   Map<String, dynamic> _normalizeGameUserInfo(Map<String, dynamic> raw) {
     final out = Map<String, dynamic>.from(raw);
-    final name = raw['user_name'] ?? raw['userName'] ?? raw['nickname'] ?? raw['name'] ?? raw['username'];
+    final name =
+        raw['user_name'] ??
+        raw['userName'] ??
+        raw['nickname'] ??
+        raw['name'] ??
+        raw['username'];
     if (name != null) {
       out['user_name'] = name.toString();
       out['userName'] = name.toString();
     }
-    final balance = raw['balance'] ?? raw['coins'] ?? raw['merchant_coins'] ?? raw['coin_balance'];
+    final balance =
+        raw['balance'] ??
+        raw['coins'] ??
+        raw['merchant_coins'] ??
+        raw['coin_balance'];
     if (balance != null) {
-      out['balance'] = balance is num ? balance : (double.tryParse(balance.toString()) ?? 0);
+      out['balance'] = balance is num
+          ? balance
+          : (double.tryParse(balance.toString()) ?? 0);
     }
-    final avatar = raw['user_avatar'] ?? raw['userAvatar'] ?? raw['avatar'] ?? raw['profile_pic'] ?? raw['profile_picture'];
+    final avatar =
+        raw['user_avatar'] ??
+        raw['userAvatar'] ??
+        raw['avatar'] ??
+        raw['profile_pic'] ??
+        raw['profile_picture'];
     if (avatar != null && avatar.toString().isNotEmpty) {
       out['user_avatar'] = avatar.toString();
     }
@@ -271,7 +360,7 @@ try {
     // This code is like an OAuth auth-code, not a nonce.
     // URL.code MUST equal getConfig.code or BAISHUN kills the session.
     try {
-      final userId = _databaseUserId ?? '';
+      final userId = _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId);
       final roomId = widget.roomId;
 
       if (userId.isEmpty) {
@@ -299,56 +388,52 @@ try {
           '[RoomScreen] ⚠️ NOTE: This is a temporary workaround. Backend should implement request_game_code.php',
         );
         _currentGameSessionCode = await _generateOneTimeCode();
-        print('[RoomScreen] ✅ Generated temporary SESSION code: $_currentGameSessionCode');
+        print(
+          '[RoomScreen] ✅ Generated temporary SESSION code: $_currentGameSessionCode',
+        );
       } else {
         print(
           '[RoomScreen] ✅ Received SESSION code from server: $_currentGameSessionCode',
         );
       }
-      print('[RoomScreen] 🔒 CRITICAL: This code will be reused in getConfig. NEVER regenerate!');
+      print(
+        '[RoomScreen] 🔒 CRITICAL: This code will be reused in getConfig. NEVER regenerate!',
+      );
 
-      // ✅ Fetch ss_token so we can pass it in getConfig; some games (e.g. MeshH5/Teen Patti) need it to login
+      // ✅ DO NOT call get_sstoken here. Code is one-time and must be consumed by the game server.
       _currentGameSessionSstoken = null;
+
+      // ✅ Fetch user info (name, avatar, balance) from backend so game can display it
+      _currentGameUserInfo = null;
       try {
-        final token = await ApiManager.requestSstokenWithCode(
-          code: _currentGameSessionCode!,
-          userId: userId,
-        );
-        _currentGameSessionSstoken = token;
-        if (token != null) {
-          print('[RoomScreen] ✅ Got ss_token for getConfig (games that need it will use it)');
-          // ✅ Fetch user info (name, avatar, balance) from get_user_info so game can display it
-          _currentGameUserInfo = null;
-          try {
-            Map<String, dynamic>? userInfo = await ApiManager.getUserInfoSUD(ssToken: token);
-            if (userInfo == null || userInfo.isEmpty) {
-              final uid = _databaseUserId != null ? int.tryParse(_databaseUserId!) : null;
-              if (uid != null) {
-                userInfo = await ApiManager.getUserInfoById(uid);
-                if (userInfo != null) print('[RoomScreen] ✅ Got user info via getUserInfoById (fallback)');
-              }
-            }
-            if (userInfo != null && userInfo.isNotEmpty) {
-              _currentGameUserInfo = _normalizeGameUserInfo(userInfo);
-              print('[RoomScreen] ✅ Got user info for game: name=${_currentGameUserInfo!['user_name'] ?? _currentGameUserInfo!['userName']}, balance=${_currentGameUserInfo!['balance']}, avatar=${_currentGameUserInfo!['user_avatar'] != null ? "yes" : "no"}');
-            }
-          } catch (e) {
-            print('[RoomScreen] ⚠️ getUserInfoSUD failed: $e');
+        final uid = (_baishunUserId ?? _databaseUserId) != null
+            ? int.tryParse(
+                _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId),
+              )
+            : null;
+        if (uid != null) {
+          final userInfo = await ApiManager.getUserInfoById(uid);
+          if (userInfo != null && userInfo.isNotEmpty) {
+            _currentGameUserInfo = _normalizeGameUserInfo(userInfo);
+            print(
+              '[RoomScreen] ✅ Got user info for game: name=${_currentGameUserInfo!['user_name'] ?? _currentGameUserInfo!['userName']}, balance=${_currentGameUserInfo!['balance']}, avatar=${_currentGameUserInfo!['user_avatar'] != null ? "yes" : "no"}',
+            );
           }
-          // 🎮 Log user info + ss_token when game opens (to verify we send correct data)
-          _logGameConfigSent();
-        } else {
-          print('[RoomScreen] ⚠️ Could not get ss_token (backend may expect BAISHUN-only); games may still work with code');
         }
       } catch (e) {
-        print('[RoomScreen] ⚠️ requestSstokenWithCode failed: $e');
+        print('[RoomScreen] ⚠️ getUserInfoById failed: $e');
       }
+
+      // 🎮 Log user info when game opens (to verify we send correct data)
+      _logGameConfigSent();
     } catch (e) {
       print('[RoomScreen] ❌ Exception requesting game code: $e');
       print('[RoomScreen] ⚠️ Falling back to local code generation');
       try {
         _currentGameSessionCode = await _generateOneTimeCode();
-        print('[RoomScreen] ✅ Generated fallback SESSION code: $_currentGameSessionCode');
+        print(
+          '[RoomScreen] ✅ Generated fallback SESSION code: $_currentGameSessionCode',
+        );
       } catch (fallbackError) {
         print('[RoomScreen] ❌ Fallback code generation failed: $fallbackError');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -381,7 +466,7 @@ try {
       'gameUrl': url,
       'gameId': meta?['gameId'],
       'roomId': widget.roomId,
-      'userId': _databaseUserId,
+      'userId': _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId),
     });
 
     // ✅ Step 2: Inject BAISHUN parameters into game URL
@@ -394,13 +479,16 @@ try {
       // Required BAISHUN parameters
       q['appChannel'] = _appChannel;
       q['appId'] = _appId.toString();
-      q['userId'] = _databaseUserId ?? '';
-      q['code'] = _currentGameSessionCode ?? ''; // ⚠️ MUST match getConfig.code!
+      q['userId'] = _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId);
+      q['code'] =
+          _currentGameSessionCode ?? ''; // ⚠️ MUST match getConfig.code!
 
       // Optional parameters
       q['roomId'] = widget.roomId;
       if (meta != null && meta['gameId'] != null)
         q['game_id'] = meta['gameId'].toString();
+      q['language'] = (meta?['language'] ?? '2').toString();
+      q['country'] = _resolveBaishunCountryCode();
 
       finalUrl = uri.replace(queryParameters: q).toString();
       print('[RoomScreen] ✅ Opening game with BAISHUN parameters:');
@@ -504,12 +592,14 @@ try {
                           ),
                           // BAISHUN doc: "injecting API with the help of JSBridge" - must be available before game runs.
                           // AT_DOCUMENT_START ensures NativeBridge exists when game script calls getConfig (fixes blank screen).
-                          initialUserScripts: UnmodifiableListView<UserScript>(<UserScript>[
-                            UserScript(
-                              source: _kBaishunNativeBridgeAtDocumentStart,
-                              injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                            ),
-                          ]),
+                          initialUserScripts:
+                              UnmodifiableListView<UserScript>(<UserScript>[
+                                UserScript(
+                                  source: _kBaishunNativeBridgeAtDocumentStart,
+                                  injectionTime:
+                                      UserScriptInjectionTime.AT_DOCUMENT_START,
+                                ),
+                              ]),
                           initialOptions: InAppWebViewGroupOptions(
                             crossPlatform: InAppWebViewOptions(
                               javaScriptEnabled: true,
@@ -582,17 +672,26 @@ try {
                                 final designH = 1334;
                                 final safeH = meta?['safe_height'] is int
                                     ? (meta!['safe_height'] as int)
-                                    : (int.tryParse(meta?['safe_height']?.toString() ?? '') ?? 770);
+                                    : (int.tryParse(
+                                            meta?['safe_height']?.toString() ??
+                                                '',
+                                          ) ??
+                                          770);
                                 final config = <String, dynamic>{
                                   'appChannel': _appChannel,
                                   'appId': _appId,
-                                  'userId': _databaseUserId ?? '',
+                                  'userId': _normalizeBaishunUserId(
+                                    _baishunUserId ?? _databaseUserId,
+                                  ),
                                   // ⚠️ MUST be the SAME code as in URL query params!
                                   'code': _currentGameSessionCode ?? '',
                                   'roomId': widget.roomId,
                                   // Doc 2.1: gameMode string "2" or "3" only
-                                  'gameMode': _validGameModeString(meta?['gameMode']),
-                                  'language': meta?['language'] ?? 'en',
+                                  'gameMode': _validGameModeString(
+                                    meta?['gameMode'],
+                                  ),
+                                  'language': meta?['language'] ?? '2',
+                                  'country': _resolveBaishunCountryCode(),
                                   'gameConfig': {
                                     'sceneMode': meta?['sceneMode'] ?? 0,
                                     'designWidth': designW,
@@ -602,22 +701,30 @@ try {
                                   'gsp': meta?['gsp'] ?? 101,
                                   'currencyIcon': meta?['currencyIcon'] ?? '',
                                 };
-                                // ✅ Games that need ss_token in config (e.g. MeshH5 / Teen Patti) can login with this
-                                if (_currentGameSessionSstoken != null &&
-                                    _currentGameSessionSstoken!.isNotEmpty) {
-                                  config['ss_token'] = _currentGameSessionSstoken;
-                                  config['uid'] = _databaseUserId ?? '';
-                                }
+                                // ✅ Do not pass ss_token from client; game server must consume code once.
 
                                 // ✅ User data from get_user_info so game can show name, avatar, balance
-                                if (_currentGameUserInfo != null && _currentGameUserInfo!.isNotEmpty) {
+                                if (_currentGameUserInfo != null &&
+                                    _currentGameUserInfo!.isNotEmpty) {
                                   final ui = _currentGameUserInfo!;
-                                  if (ui['user_name'] != null) config['user_name'] = ui['user_name'].toString();
-                                  if (ui['userName'] != null) config['userName'] = ui['userName'].toString();
-                                  if (ui['balance'] != null) config['balance'] = ui['balance'] is num ? (ui['balance'] as num).toDouble() : double.tryParse(ui['balance'].toString());
-                                  if (ui['user_avatar'] != null && ui['user_avatar'].toString().isNotEmpty) {
+                                  if (ui['user_name'] != null)
+                                    config['user_name'] = ui['user_name']
+                                        .toString();
+                                  if (ui['userName'] != null)
+                                    config['userName'] = ui['userName']
+                                        .toString();
+                                  if (ui['balance'] != null)
+                                    config['balance'] = ui['balance'] is num
+                                        ? (ui['balance'] as num).toDouble()
+                                        : double.tryParse(
+                                            ui['balance'].toString(),
+                                          );
+                                  if (ui['user_avatar'] != null &&
+                                      ui['user_avatar'].toString().isNotEmpty) {
                                     final av = ui['user_avatar'].toString();
-                                    final fullUrl = av.startsWith('http') ? av : '${ApiConstants.baseUrl}$av';
+                                    final fullUrl = av.startsWith('http')
+                                        ? av
+                                        : '${ApiConstants.baseUrl}$av';
                                     config['user_avatar'] = fullUrl;
                                     config['userAvatar'] = fullUrl;
                                   }
@@ -905,15 +1012,24 @@ try {
                             try {
                               final safeH = meta?['safe_height'] is int
                                   ? (meta!['safe_height'] as int)
-                                  : (int.tryParse(meta?['safe_height']?.toString() ?? '') ?? 770);
+                                  : (int.tryParse(
+                                          meta?['safe_height']?.toString() ??
+                                              '',
+                                        ) ??
+                                        770);
                               final configData = <String, dynamic>{
                                 'appChannel': _appChannel,
                                 'appId': _appId,
-                                'userId': _databaseUserId ?? '',
+                                'userId': _normalizeBaishunUserId(
+                                  _baishunUserId ?? _databaseUserId,
+                                ),
                                 'code': _currentGameSessionCode ?? '',
                                 'roomId': widget.roomId,
-                                'gameMode': _validGameModeString(meta?['gameMode']),
-                                'language': meta?['language'] ?? 'en',
+                                'gameMode': _validGameModeString(
+                                  meta?['gameMode'],
+                                ),
+                                'language': meta?['language'] ?? '2',
+                                'country': _resolveBaishunCountryCode(),
                                 'gameConfig': {
                                   'sceneMode': meta?['sceneMode'] ?? 0,
                                   'designWidth': 750,
@@ -926,26 +1042,44 @@ try {
                               if (meta != null && meta.containsKey('gameId')) {
                                 configData['gameId'] = meta['gameId'];
                               }
-                              if (_currentGameUserInfo != null && _currentGameUserInfo!.isNotEmpty) {
+                              if (_currentGameUserInfo != null &&
+                                  _currentGameUserInfo!.isNotEmpty) {
                                 final ui = _currentGameUserInfo!;
-                                if (ui['user_name'] != null) configData['user_name'] = ui['user_name'].toString();
-                                if (ui['userName'] != null) configData['userName'] = ui['userName'].toString();
-                                if (ui['balance'] != null) configData['balance'] = ui['balance'] is num ? (ui['balance'] as num).toDouble() : double.tryParse(ui['balance'].toString());
-                                if (ui['user_avatar'] != null && ui['user_avatar'].toString().isNotEmpty) {
+                                if (ui['user_name'] != null)
+                                  configData['user_name'] = ui['user_name']
+                                      .toString();
+                                if (ui['userName'] != null)
+                                  configData['userName'] = ui['userName']
+                                      .toString();
+                                if (ui['balance'] != null)
+                                  configData['balance'] = ui['balance'] is num
+                                      ? (ui['balance'] as num).toDouble()
+                                      : double.tryParse(
+                                          ui['balance'].toString(),
+                                        );
+                                if (ui['user_avatar'] != null &&
+                                    ui['user_avatar'].toString().isNotEmpty) {
                                   final av = ui['user_avatar'].toString();
-                                  configData['user_avatar'] = av.startsWith('http') ? av : '${ApiConstants.baseUrl}$av';
-                                  configData['userAvatar'] = configData['user_avatar'];
+                                  configData['user_avatar'] =
+                                      av.startsWith('http')
+                                      ? av
+                                      : '${ApiConstants.baseUrl}$av';
+                                  configData['userAvatar'] =
+                                      configData['user_avatar'];
                                 }
                               }
-                              if (_currentGameSessionSstoken != null && _currentGameSessionSstoken!.isNotEmpty) {
-                                configData['ss_token'] = _currentGameSessionSstoken;
+                              if (_currentGameSessionSstoken != null &&
+                                  _currentGameSessionSstoken!.isNotEmpty) {
+                                configData['ss_token'] =
+                                    _currentGameSessionSstoken;
                                 configData['uid'] = _databaseUserId ?? '';
                               }
                               // 🎮 Log what we inject in onLoadStop (user info + ss_token)
                               _logGameConfigSent(config: configData);
                               final configJson = jsonEncode(configData);
                               await controller.evaluateJavascript(
-                                source: '''
+                                source:
+                                    '''
                                 (function(){
                                   try {
                                     window.__flutter_game_config_callback = function(cfg){
@@ -970,14 +1104,20 @@ try {
                                 })();
                                 ''',
                               );
-                              print('[RoomScreen] ✅ Injected game config and getConfig trigger in onLoadStop');
+                              print(
+                                '[RoomScreen] ✅ Injected game config and getConfig trigger in onLoadStop',
+                              );
                             } catch (e) {
-                              print('[RoomScreen] Failed injecting config in onLoadStop: $e');
+                              print(
+                                '[RoomScreen] Failed injecting config in onLoadStop: $e',
+                              );
                             }
 
                             // Don't hide loading here - wait for gameLoaded so we don't show blank while game initializes (fixes "stuck" feel)
                             // Loading will be hidden when game calls NativeBridge.gameLoaded() or after timeout in timer below
-                            print('[RoomScreen] Page loaded; waiting for gameLoaded before hiding overlay');
+                            print(
+                              '[RoomScreen] Page loaded; waiting for gameLoaded before hiding overlay',
+                            );
                             if (builderContext.mounted) {
                               Future.delayed(const Duration(seconds: 12), () {
                                 if (!builderContext.mounted) return;
@@ -985,7 +1125,9 @@ try {
                                   setBottomSheetState(() {
                                     if (isBottomSheetLoading) {
                                       isBottomSheetLoading = false;
-                                      print('[RoomScreen] ✅ Loading overlay hidden (timeout 12s)');
+                                      print(
+                                        '[RoomScreen] ✅ Loading overlay hidden (timeout 12s)',
+                                      );
                                     }
                                   });
                                 } catch (_) {}
@@ -1682,7 +1824,9 @@ try {
                               color: Colors.black54,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 10, horizontal: 12),
+                                  vertical: 10,
+                                  horizontal: 12,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -1690,13 +1834,16 @@ try {
                                       valueListenable: gameServerErrorNotifier,
                                       builder: (_, showError, __) => showError
                                           ? Padding(
-                                              padding: const EdgeInsets.only(bottom: 6),
+                                              padding: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
                                               child: Text(
                                                 'Server connection failed. Configure get_sstoken & get_user_info in BAISHUN backend.',
                                                 style: TextStyle(
-                                                    color: Colors.amber,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w500),
+                                                  color: Colors.amber,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
                                                 textAlign: TextAlign.center,
                                               ),
                                             )
@@ -1705,8 +1852,9 @@ try {
                                     Text(
                                       'If blank in browser too, this game link may be down.',
                                       style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 11),
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                      ),
                                       textAlign: TextAlign.center,
                                     ),
                                     SizedBox(height: 8),
@@ -1714,88 +1862,112 @@ try {
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceEvenly,
                                       children: [
-                                    InkWell(
-                                      onTap: () async {
-                                        if (!builderContext.mounted) return;
-                                        try {
-                                          setBottomSheetState(() {
-                                            isBottomSheetLoading = true;
-                                          });
-                                          await _gameWebController?.clearCache();
-                                          await _gameWebController?.reload();
-                                        } catch (e) {
-                                          print(
-                                              '[RoomScreen] Retry reload failed: $e');
-                                          if (builderContext.mounted) {
-                                            setBottomSheetState(() {
-                                              isBottomSheetLoading = false;
-                                            });
-                                          }
-                                        }
-                                      },
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.refresh,
-                                              color: Colors.white, size: 20),
-                                          SizedBox(width: 6),
-                                          Text('Retry',
-                                              style: TextStyle(
+                                        InkWell(
+                                          onTap: () async {
+                                            if (!builderContext.mounted) return;
+                                            try {
+                                              setBottomSheetState(() {
+                                                isBottomSheetLoading = true;
+                                              });
+                                              await _gameWebController
+                                                  ?.clearCache();
+                                              await _gameWebController
+                                                  ?.reload();
+                                            } catch (e) {
+                                              print(
+                                                '[RoomScreen] Retry reload failed: $e',
+                                              );
+                                              if (builderContext.mounted) {
+                                                setBottomSheetState(() {
+                                                  isBottomSheetLoading = false;
+                                                });
+                                              }
+                                            }
+                                          },
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(
+                                                Icons.refresh,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Retry',
+                                                style: TextStyle(
                                                   color: Colors.white,
-                                                  fontSize: 13)),
-                                        ],
-                                      ),
-                                    ),
-                                    InkWell(
-                                      onTap: () async {
-                                        try {
-                                          final uri = Uri.parse(finalUrl);
-                                          if (await canLaunchUrl(uri)) {
-                                            await launchUrl(uri,
-                                                mode: LaunchMode
-                                                    .externalApplication);
-                                          } else {
-                                            if (builderContext.mounted) {
-                                              ScaffoldMessenger.of(
-                                                      builderContext)
-                                                  .showSnackBar(const SnackBar(
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () async {
+                                            try {
+                                              final uri = Uri.parse(finalUrl);
+                                              if (await canLaunchUrl(uri)) {
+                                                await launchUrl(
+                                                  uri,
+                                                  mode: LaunchMode
+                                                      .externalApplication,
+                                                );
+                                              } else {
+                                                if (builderContext.mounted) {
+                                                  ScaffoldMessenger.of(
+                                                    builderContext,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
                                                       content: Text(
-                                                          'Cannot open URL')));
+                                                        'Cannot open URL',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              }
+                                            } catch (e) {
+                                              print(
+                                                '[RoomScreen] Open in browser failed: $e',
+                                              );
+                                              if (builderContext.mounted) {
+                                                ScaffoldMessenger.of(
+                                                  builderContext,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text('Error: $e'),
+                                                  ),
+                                                );
+                                              }
                                             }
-                                            }
-                                        } catch (e) {
-                                          print(
-                                              '[RoomScreen] Open in browser failed: $e');
-                                          if (builderContext.mounted) {
-                                            ScaffoldMessenger.of(
-                                                    builderContext)
-                                                .showSnackBar(SnackBar(
-                                                    content: Text(
-                                                        'Error: $e')));
-                                          }
-                                        }
-                                      },
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: const [
-                                          Icon(Icons.open_in_new,
-                                              color: Colors.white, size: 20),
-                                          SizedBox(width: 6),
-                                          Text('Open in browser',
-                                              style: TextStyle(
+                                          },
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(
+                                                Icons.open_in_new,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                'Open in browser',
+                                                style: TextStyle(
                                                   color: Colors.white,
-                                                  fontSize: 13)),
-                                        ],
-                                      ),
-                                    ),
-                                    ],  // Row children
-                                  ),    // Row
-                                    ],  // Column children
-                                  ),    // Column
-                                ),      // Padding
-                              ),        // Material
-                            ),          // SafeArea
-                          ),            // Positioned
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ], // Row children
+                                    ), // Row
+                                  ], // Column children
+                                ), // Column
+                              ), // Padding
+                            ), // Material
+                          ), // SafeArea
+                        ), // Positioned
                     ],
                   ),
                 ),
@@ -1816,7 +1988,10 @@ try {
     try {
       final uri = Uri.parse(baseUrl);
       // Skip if localhost/invalid - avoids Connection refused and log noise (audit fix)
-      if (uri.host == '127.0.0.1' || uri.host == 'localhost' || !uri.host.contains('.')) return;
+      if (uri.host == '127.0.0.1' ||
+          uri.host == 'localhost' ||
+          !uri.host.contains('.'))
+        return;
       final client = HttpClient();
       final req = await client.postUrl(uri);
       req.headers.contentType = ContentType.json;
@@ -1872,17 +2047,18 @@ try {
       final obj = json.decode(event);
       final jsFunName = (obj['jsCallback'] ?? '') as String;
       if (jsFunName.contains('getConfig')) {
-        final code = await _generateOneTimeCode();
+        final code = _currentGameSessionCode ?? await _generateOneTimeCode();
         final config = <String, dynamic>{
           'appChannel': _appChannel,
           'appName': _appName,
           'appId': _appId,
-          'userId': _databaseUserId ?? '',
+          'userId': _normalizeBaishunUserId(_baishunUserId ?? _databaseUserId),
           'code': code,
           'roomId': widget.roomId,
           // Doc 2.1: gameMode string "2" or "3" only
           'gameMode': _validGameModeString(obj['gameMode']),
-          'language': obj['language'] ?? 'en',
+          'language': obj['language'] ?? '2',
+          'country': _resolveBaishunCountryCode(),
           'gameConfig': {'sceneMode': obj['sceneMode'] ?? 0},
           'gsp': obj['gsp'] ?? 101,
           'currencyIcon': obj['currencyIcon'] ?? '',
@@ -1953,9 +2129,14 @@ try {
                   'assets/images/game_icon.png';
               // ✅ Provider requires W:750, H:1334, SH (safe_height) per game - pass in meta
               final meta = <String, dynamic>{'gameId': id};
-              if (item['safe_height'] != null) meta['safe_height'] = item['safe_height'] is int ? item['safe_height'] : int.tryParse(item['safe_height'].toString());
-              if (item['game_mode'] != null) meta['game_mode'] = item['game_mode'];
-              if (item['game_orientation'] != null) meta['game_orientation'] = item['game_orientation'];
+              if (item['safe_height'] != null)
+                meta['safe_height'] = item['safe_height'] is int
+                    ? item['safe_height']
+                    : int.tryParse(item['safe_height'].toString());
+              if (item['game_mode'] != null)
+                meta['game_mode'] = item['game_mode'];
+              if (item['game_orientation'] != null)
+                meta['game_orientation'] = item['game_orientation'];
               return {
                 'id': id is int ? id : int.tryParse(id?.toString() ?? '') ?? 0,
                 'name': name.toString(),
@@ -2124,10 +2305,13 @@ try {
                   final val = info['download_url'].toString().trim();
                   if (!val.contains('127.0.0.1')) {
                     finalUrl = val;
-                    print('[RoomScreen] Using download_url from one_game_info: $finalUrl');
+                    print(
+                      '[RoomScreen] Using download_url from one_game_info: $finalUrl',
+                    );
                   }
                 }
-                if (finalUrl == url && info.containsKey('address') &&
+                if (finalUrl == url &&
+                    info.containsKey('address') &&
                     info['address'] != null &&
                     info['address'].toString().isNotEmpty) {
                   finalUrl = info['address'].toString();
@@ -2160,9 +2344,14 @@ try {
                 final mergedMeta = meta == null
                     ? <String, dynamic>{'gameId': gameId}
                     : Map<String, dynamic>.from(meta!);
-                if (info['safe_height'] != null) mergedMeta['safe_height'] = info['safe_height'] is int ? info['safe_height'] : int.tryParse(info['safe_height'].toString());
-                if (info['game_mode'] != null) mergedMeta['game_mode'] = info['game_mode'];
-                if (info['game_orientation'] != null) mergedMeta['game_orientation'] = info['game_orientation'];
+                if (info['safe_height'] != null)
+                  mergedMeta['safe_height'] = info['safe_height'] is int
+                      ? info['safe_height']
+                      : int.tryParse(info['safe_height'].toString());
+                if (info['game_mode'] != null)
+                  mergedMeta['game_mode'] = info['game_mode'];
+                if (info['game_orientation'] != null)
+                  mergedMeta['game_orientation'] = info['game_orientation'];
                 meta = mergedMeta;
 
                 print(
@@ -2180,106 +2369,140 @@ try {
           final lowerName = name.toLowerCase();
           final lowerUrl = finalUrl.toLowerCase();
           final metaStr = meta?.toString().toLowerCase() ?? '';
-          final urlInvalid = finalUrl.isEmpty ||
+          final urlInvalid =
+              finalUrl.isEmpty ||
               lowerUrl.contains('127.0.0.1') ||
               !lowerUrl.startsWith('http');
 
           if (urlInvalid) {
             // GreedyCat (game_id: 1128)
-            if (lowerName.contains('greedy') || lowerName.contains('cat') ||
-                lowerUrl.contains('greedy') || lowerUrl.contains('cat') ||
-                metaStr.contains('greedy-cat') || metaStr.contains('greedycat')) {
+            if (lowerName.contains('greedy') ||
+                lowerName.contains('cat') ||
+                lowerUrl.contains('greedy') ||
+                lowerUrl.contains('cat') ||
+                metaStr.contains('greedy-cat') ||
+                metaStr.contains('greedycat')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/greedy-cat/1.0.9/web-mobile/index.html';
               print('[RoomScreen] Using fallback GreedyCat URL -> $finalUrl');
             }
             // Fruit77 (game_id: 1094)
-            else if (lowerName.contains('fruit77') || lowerName.contains('fruit 77') ||
-                lowerUrl.contains('fruit77') || lowerUrl.contains('fruit 77') ||
+            else if (lowerName.contains('fruit77') ||
+                lowerName.contains('fruit 77') ||
+                lowerUrl.contains('fruit77') ||
+                lowerUrl.contains('fruit 77') ||
                 metaStr.contains('fruit77')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/fruit77/1.0.7/web-mobile/index.html';
               print('[RoomScreen] Using fallback Fruit77 URL -> $finalUrl');
             }
             // FruitParty2 (game_id: 1085)
-            else if (lowerName.contains('fruitparty2') || lowerName.contains('fruit party 2') ||
-                lowerName.contains('fruit party2') || lowerUrl.contains('fruit-party2') ||
-                lowerUrl.contains('fruitparty2') || metaStr.contains('fruit-party2') || 
+            else if (lowerName.contains('fruitparty2') ||
+                lowerName.contains('fruit party 2') ||
+                lowerName.contains('fruit party2') ||
+                lowerUrl.contains('fruit-party2') ||
+                lowerUrl.contains('fruitparty2') ||
+                metaStr.contains('fruit-party2') ||
                 metaStr.contains('fruitparty2')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/fruit-party2/1.6.8/web-mobile/index.html';
               print('[RoomScreen] Using fallback FruitParty2 URL -> $finalUrl');
             }
             // RoulettePro (game_id: 1081)
-            else if (lowerName.contains('roulettepro') || lowerName.contains('roulette pro') ||
-                lowerName.contains('roulette') || lowerUrl.contains('roulette') ||
-                metaStr.contains('roulette-pro') || metaStr.contains('roulettepro')) {
+            else if (lowerName.contains('roulettepro') ||
+                lowerName.contains('roulette pro') ||
+                lowerName.contains('roulette') ||
+                lowerUrl.contains('roulette') ||
+                metaStr.contains('roulette-pro') ||
+                metaStr.contains('roulettepro')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/roulette-pro/1.2.8/web-mobile/index.html';
               print('[RoomScreen] Using fallback RoulettePro URL -> $finalUrl');
             }
             // FruitParty (game_id: 1077)
-            else if (lowerName.contains('fruitparty') || lowerName.contains('fruit party') ||
-                lowerUrl.contains('fruit-party') || lowerUrl.contains('fruitparty') ||
-                metaStr.contains('fruit-party') || metaStr.contains('fruitparty')) {
+            else if (lowerName.contains('fruitparty') ||
+                lowerName.contains('fruit party') ||
+                lowerUrl.contains('fruit-party') ||
+                lowerUrl.contains('fruitparty') ||
+                metaStr.contains('fruit-party') ||
+                metaStr.contains('fruitparty')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/fruit-party/1.0.7/web-mobile/index.html';
               print('[RoomScreen] Using fallback FruitParty URL -> $finalUrl');
             }
             // DragonTiger (game_id: 1073)
-            else if (lowerName.contains('dragon') || lowerName.contains('tiger') ||
-                lowerUrl.contains('dragon') || lowerUrl.contains('tiger') ||
-                metaStr.contains('dragon-tiger') || metaStr.contains('dragontiger')) {
+            else if (lowerName.contains('dragon') ||
+                lowerName.contains('tiger') ||
+                lowerUrl.contains('dragon') ||
+                lowerUrl.contains('tiger') ||
+                metaStr.contains('dragon-tiger') ||
+                metaStr.contains('dragontiger')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/dragon-tiger/1.1.7/web-mobile/index.html';
               print('[RoomScreen] Using fallback DragonTiger URL -> $finalUrl');
             }
             // GreedyLion (game_id: 1068)
-            else if (lowerName.contains('greedy') || lowerName.contains('lion') ||
-                lowerUrl.contains('greedy') || lowerUrl.contains('lion') ||
-                metaStr.contains('greedy-lion') || metaStr.contains('greedylion')) {
+            else if (lowerName.contains('greedy') ||
+                lowerName.contains('lion') ||
+                lowerUrl.contains('greedy') ||
+                lowerUrl.contains('lion') ||
+                metaStr.contains('greedy-lion') ||
+                metaStr.contains('greedylion')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/greedy-lion/1.3.7/web-mobile/index.html';
               print('[RoomScreen] Using fallback GreedyLion URL -> $finalUrl');
             }
             // BigEater (game_id: 1067)
-            else if (lowerName.contains('big') || lowerName.contains('eater') ||
-                lowerUrl.contains('big') || lowerUrl.contains('eater') ||
-                metaStr.contains('big-eater') || metaStr.contains('bigeater')) {
+            else if (lowerName.contains('big') ||
+                lowerName.contains('eater') ||
+                lowerUrl.contains('big') ||
+                lowerUrl.contains('eater') ||
+                metaStr.contains('big-eater') ||
+                metaStr.contains('bigeater')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/big-eater/1.2.2/web-mobile/index.html';
               print('[RoomScreen] Using fallback BigEater URL -> $finalUrl');
             }
             // TeenPatti (game_id: 1041)
-            else if (lowerName.contains('teen') || lowerName.contains('patti') ||
-                lowerUrl.contains('teen') || lowerUrl.contains('patti') ||
+            else if (lowerName.contains('teen') ||
+                lowerName.contains('patti') ||
+                lowerUrl.contains('teen') ||
+                lowerUrl.contains('patti') ||
                 metaStr.contains('teenpatti')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/teenpatti/1.4.1/web-mobile/index.html';
               print('[RoomScreen] Using fallback TeenPatti URL -> $finalUrl');
             }
             // Lucky77 (game_id: 1040)
-            else if (lowerName.contains('lucky77') || lowerName.contains('lucky 77') ||
-                lowerUrl.contains('lucky77') || lowerUrl.contains('lucky 77') ||
+            else if (lowerName.contains('lucky77') ||
+                lowerName.contains('lucky 77') ||
+                lowerUrl.contains('lucky77') ||
+                lowerUrl.contains('lucky 77') ||
                 metaStr.contains('lucky77')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/fruitroulette/1.4.2/web-mobile/index.html';
               print('[RoomScreen] Using fallback Lucky77 URL -> $finalUrl');
             }
             // LuckyChest (game_id: 1026)
-            else if (lowerName.contains('lucky') || lowerName.contains('chest') ||
-                lowerUrl.contains('lucky') || lowerUrl.contains('chest') ||
+            else if (lowerName.contains('lucky') ||
+                lowerName.contains('chest') ||
+                lowerUrl.contains('lucky') ||
+                lowerUrl.contains('chest') ||
                 metaStr.contains('lucky_chest')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/lucky_chest/1.2.7/web-mobile/index.html';
               print('[RoomScreen] Using fallback LuckyChest URL -> $finalUrl');
             }
             // Fruit Carnival
-            else if (lowerName.contains('fruit') || lowerUrl.contains('fruit') ||
-                metaStr.contains('fruit_carnival') || metaStr.contains('fruit')) {
+            else if (lowerName.contains('fruit') ||
+                lowerUrl.contains('fruit') ||
+                metaStr.contains('fruit_carnival') ||
+                metaStr.contains('fruit')) {
               finalUrl =
                   'https://game-center-test.jieyou.shop/game-packages/common-web/fruit_carnival/1.0.8/web-mobile/index.html';
-              print('[RoomScreen] Using fallback Fruit Carnival URL -> $finalUrl');
+              print(
+                '[RoomScreen] Using fallback Fruit Carnival URL -> $finalUrl',
+              );
             }
           }
         } catch (e) {
@@ -2834,17 +3057,25 @@ try {
       // ✅ Get database user_id for WebSocket connection
       final databaseUserId = await _getDatabaseUserId();
       _databaseUserId = databaseUserId; // ✅ Store for later use
+      _baishunUserId = _normalizeBaishunUserId(_databaseUserId);
       // ✅ Ensure UserMessageProvider is initialized and chatRooms are loaded
       try {
-        final userMsgProv = Provider.of<UserMessageProvider>(context, listen: false);
+        final userMsgProv = Provider.of<UserMessageProvider>(
+          context,
+          listen: false,
+        );
         final dbIdInt = int.tryParse(_databaseUserId ?? '') ?? 0;
         if (dbIdInt != 0) {
           userMsgProv.setCurrentUser(dbIdInt);
           await userMsgProv.loadChatRooms();
-          print('✅ UserMessageProvider: loaded chatRooms for user $dbIdInt (${userMsgProv.chatRooms.length})');
+          print(
+            '✅ UserMessageProvider: loaded chatRooms for user $dbIdInt (${userMsgProv.chatRooms.length})',
+          );
         } else {
           await userMsgProv.initializeUser();
-          print('✅ UserMessageProvider: initialized (chatRooms: ${userMsgProv.chatRooms.length})');
+          print(
+            '✅ UserMessageProvider: initialized (chatRooms: ${userMsgProv.chatRooms.length})',
+          );
         }
       } catch (e) {
         print('⚠️ Failed to initialize UserMessageProvider: $e');
@@ -3020,12 +3251,19 @@ try {
           String? zegoToken;
           if (_databaseUserId != null && _databaseUserId!.isNotEmpty) {
             try {
-              zegoToken = await ApiManager.getZegoToken(roomId: widget.roomId.toString(), userId: _databaseUserId!);
+              zegoToken = await ApiManager.getZegoToken(
+                roomId: widget.roomId.toString(),
+                userId: _databaseUserId!,
+              );
               if (zegoToken != null) {
-                print("✅ [RoomScreen] Got Zego token from backend – using token auth");
+                print(
+                  "✅ [RoomScreen] Got Zego token from backend – using token auth",
+                );
               }
             } catch (e) {
-              print("⚠️ [RoomScreen] Zego token fetch failed: $e – joining without token");
+              print(
+                "⚠️ [RoomScreen] Zego token fetch failed: $e – joining without token",
+              );
             }
           }
           final joinSuccess = await zegoProvider.joinRoom(
@@ -3398,7 +3636,10 @@ try {
             String? token;
             if (_databaseUserId != null && _databaseUserId!.isNotEmpty) {
               try {
-                token = await ApiManager.getZegoToken(roomId: widget.roomId.toString(), userId: _databaseUserId!);
+                token = await ApiManager.getZegoToken(
+                  roomId: widget.roomId.toString(),
+                  userId: _databaseUserId!,
+                );
               } catch (_) {}
             }
             final joinSuccess = await zegoProvider.joinRoom(
@@ -3519,6 +3760,10 @@ try {
         return int.tryParse(value?.toString() ?? '') ?? 0;
       }
 
+      double safeDouble(dynamic value) {
+        return double.tryParse(value?.toString() ?? '') ?? 0.0;
+      }
+
       String? safeString(dynamic value) {
         if (value == null) return null;
         final s = value.toString().trim();
@@ -3568,24 +3813,26 @@ try {
         context,
         listen: false,
       );
-        final giftId =
-          safeInt(payload['gift_id']) > 0 ? safeInt(payload['gift_id']) : 
-          (safeInt(payload['giftId']) > 0 ? safeInt(payload['giftId']) : safeInt(nestedString(payload, ['gift', 'id'])));
-        
-        final senderId = safeString(payload['sender_id']);
-        final receiverId = safeString(payload['receiver_id']);
-        final senderIdInt = safeInt(senderId);
-        final receiverIdInt = safeInt(receiverId);
-        
-        final receiverSeatNumber = safeInt(
-          payload['seat_number'] ??
-              payload['receiver_seat'] ??
-              payload['to_seat'] ??
-              payload['receiver_seat_number'],
-        );
+      final giftId = safeInt(payload['gift_id']) > 0
+          ? safeInt(payload['gift_id'])
+          : (safeInt(payload['giftId']) > 0
+                ? safeInt(payload['giftId'])
+                : safeInt(nestedString(payload, ['gift', 'id'])));
 
-        // ✅ Robust Name Extraction (using safeString to avoid " " empty strings)
-        var senderName =
+      final senderId = safeString(payload['sender_id']);
+      final receiverId = safeString(payload['receiver_id']);
+      final senderIdInt = safeInt(senderId);
+      final receiverIdInt = safeInt(receiverId);
+
+      final receiverSeatNumber = safeInt(
+        payload['seat_number'] ??
+            payload['receiver_seat'] ??
+            payload['to_seat'] ??
+            payload['receiver_seat_number'],
+      );
+
+      // ✅ Robust Name Extraction (using safeString to avoid " " empty strings)
+      var senderName =
           safeString(payload['sender_name']) ??
           safeString(payload['sender_username']) ??
           safeString(payload['sender']) ??
@@ -3593,8 +3840,8 @@ try {
           nestedString(payload, ['sender', 'name']) ??
           nestedString(payload, ['sender', 'username']) ??
           'User';
-          
-        var receiverName =
+
+      var receiverName =
           safeString(payload['receiver_name']) ??
           safeString(payload['receiver_username']) ??
           safeString(payload['receiver']) ??
@@ -3605,32 +3852,34 @@ try {
           nestedString(payload, ['to_user', 'name']) ??
           nestedString(payload, ['to_user', 'username']) ??
           'User';
-          
-        var senderAvatar =
+
+      var senderAvatar =
           safeString(payload['sender_avatar']) ??
           safeString(payload['sender_image']) ??
           safeString(payload['sender_profile']) ??
           safeString(payload['sender_profile_url']) ??
           nestedString(payload, ['sender', 'profile_url']) ??
           nestedString(payload, ['sender', 'avatar']);
-          
-        var receiverAvatar =
+
+      var receiverAvatar =
           safeString(payload['receiver_avatar']) ??
           safeString(payload['receiver_image']) ??
           safeString(payload['receiver_profile']) ??
           safeString(payload['receiver_profile_url']) ??
           nestedString(payload, ['receiver', 'profile_url']) ??
           nestedString(payload, ['receiver', 'avatar']);
-          
-        final quantity = safeInt(payload['quantity']) > 0 ? safeInt(payload['quantity']) : 1;
-        
-        final giftName =
+
+      final quantity = safeInt(payload['quantity']) > 0
+          ? safeInt(payload['quantity'])
+          : 1;
+
+      final giftName =
           safeString(payload['gift_name']) ??
           safeString(payload['gift']) ??
           nestedString(payload, ['gift', 'gift_name']) ??
           nestedString(payload, ['gift', 'name']);
-          
-        final payloadGiftValue =
+
+      final payloadGiftValue =
           double.tryParse(payload['gift_value']?.toString() ?? '0') ?? 0.0;
 
       // ✅ Fetch sender and receiver profile data from seat provider if avatars are missing
@@ -3711,7 +3960,8 @@ try {
               final seatByNumber = seatProvider.seats.firstWhere(
                 (s) => s.isOccupied && s.seatNumber == receiverSeatNumber,
               );
-              if (seatByNumber.userName != null || seatByNumber.username != null) {
+              if (seatByNumber.userName != null ||
+                  seatByNumber.username != null) {
                 receiverName =
                     seatByNumber.userName ?? seatByNumber.username ?? 'User';
                 print("✅ Got receiver name from seat number: $receiverName");
@@ -3803,8 +4053,9 @@ try {
 
         try {
           if (giftId != null) {
-            giftFromProvider =
-                giftProvider.allGifts.firstWhere((g) => g.id == giftId);
+            giftFromProvider = giftProvider.allGifts.firstWhere(
+              (g) => g.id == giftId,
+            );
           } else if (giftName != null && giftName.isNotEmpty) {
             giftFromProvider = giftProvider.allGifts.firstWhere(
               (g) => g.name.toLowerCase() == giftName.toLowerCase(),
@@ -3818,8 +4069,9 @@ try {
           await giftProvider.fetchAllGifts();
           try {
             if (giftId != null) {
-              giftFromProvider =
-                  giftProvider.allGifts.firstWhere((g) => g.id == giftId);
+              giftFromProvider = giftProvider.allGifts.firstWhere(
+                (g) => g.id == giftId,
+              );
             } else if (giftName != null && giftName.isNotEmpty) {
               giftFromProvider = giftProvider.allGifts.firstWhere(
                 (g) => g.name.toLowerCase() == giftName.toLowerCase(),
@@ -3863,11 +4115,13 @@ try {
             category: giftFromProvider.category,
             coinType: giftFromProvider.coinType,
             description: giftFromProvider.description,
-            image: (giftFromProvider.image != null &&
+            image:
+                (giftFromProvider.image != null &&
                     giftFromProvider.image!.isNotEmpty)
                 ? giftFromProvider.image
                 : (normalizedGiftImage ?? ''),
-            animationFile: (giftFromProvider.animationFile != null &&
+            animationFile:
+                (giftFromProvider.animationFile != null &&
                     giftFromProvider.animationFile!.isNotEmpty)
                 ? giftFromProvider.animationFile
                 : normalizedAnimFile,
@@ -3880,7 +4134,8 @@ try {
           gift = GiftModel(
             id: giftId,
             name: giftName ?? 'Gift',
-            price: double.tryParse(payload['gift_value']?.toString() ?? '0') ??
+            price:
+                double.tryParse(payload['gift_value']?.toString() ?? '0') ??
                 0.0,
             image: normalizedGiftImage ?? '',
             category: 'normal',
@@ -3892,16 +4147,48 @@ try {
 
         // ✅ Ensure broadcast uses resolved names/images on this client
         final effectivePrice = gift.price > 0 ? gift.price : payloadGiftValue;
-        final totalValue = (effectivePrice * quantity).toDouble();
-        final isLucky = gift.category.toLowerCase().contains('lucky');
-        if (totalValue > 100000 && !isLucky) {
+        final baseTotal = (effectivePrice * quantity).toDouble();
+        final rewardAmount = safeDouble(
+          payload['reward_amount'] ??
+              payload['reward'] ??
+              payload['amount'] ??
+              payload['reward_value'] ??
+              payload['win_amount'] ??
+              payload['win_coins'] ??
+              payload['coins'] ??
+              payload['lucky_amount'] ??
+              payload['lucky_reward'],
+        );
+        final multiplier = safeDouble(
+          payload['multiplier'] ??
+              payload['reward_multiplier'] ??
+              payload['lucky_multiplier'] ??
+              payload['combo_multiplier'] ??
+              payload['x'] ??
+              payload['times'],
+        );
+        final totalValue = rewardAmount > 0
+            ? rewardAmount
+            : (multiplier > 0 && baseTotal > 0)
+            ? baseTotal * multiplier
+            : baseTotal;
+        final isLucky =
+            gift.category.toLowerCase().contains('lucky') ||
+            (safeString(
+                  payload['gift_category'],
+                )?.toLowerCase().contains('lucky') ??
+                false) ||
+            (safeString(payload['category'])?.toLowerCase().contains('lucky') ??
+                false) ||
+            (giftName?.toLowerCase().contains('lucky') ?? false);
+        if (isLucky) {
           print("🚀 [RoomScreen] Preparing Broadcast...");
           print("   SenderName arg: '$senderName'");
           print("   ReceiverName arg: '$receiverName'");
-          
+
           final finalSender = senderName.isEmpty ? 'User' : senderName;
           final finalReceiver = receiverName.isEmpty ? 'User' : receiverName;
-          
+
           print("   Final Sender: '$finalSender'");
           print("   Final Receiver: '$finalReceiver'");
 
@@ -3909,20 +4196,57 @@ try {
             context,
             listen: false,
           );
-            final broadcastGiftImage =
-              safeString(gift.image) ?? normalizeMediaUrl(
-              payload['gift_image'] ??
-                payload['gift_img'] ??
-                payload['gift_icon'] ??
-                payload['gift_file'],
+          final broadcastGiftImage =
+              safeString(gift.image) ??
+              normalizeMediaUrl(
+                payload['gift_image'] ??
+                    payload['gift_img'] ??
+                    payload['gift_icon'] ??
+                    payload['gift_file'],
               ) ??
               '';
           print("   Gift Image: '$broadcastGiftImage'");
-          
+
+          final senderKey = senderId ?? '';
+          if (senderKey.isNotEmpty) {
+            _luckyGiftSnapshots[senderKey] = _LuckyGiftSnapshot(
+              senderName: finalSender,
+              senderAvatar: senderAvatar ?? '',
+              giftName: gift.name,
+              baseTotal: baseTotal,
+            );
+          }
+
+          if (rewardAmount <= 0 && multiplier <= 0) {
+            print(
+              "⏳ [RoomScreen] Lucky gift sent; waiting for result to show multiplied coins",
+            );
+            // ✅ FORCE TRIGGER: If this is a SUCCESS event, it might contain the result even if multiplier parsing failed earlier
+            // Try to force update anyway if we have sender info
+            // broadcastProvider.showBroadcastOverlay(...) is called below regardless
+          } else {
+            // Logic for normal result handling
+            final displayMultiplier = multiplier > 0
+                ? multiplier.round()
+                : (baseTotal > 0 && rewardAmount > 0)
+                ? (rewardAmount / baseTotal).round()
+                : 0;
+            if (displayMultiplier > 0) {
+              _showLuckyResultDialog(
+                multiplier: displayMultiplier,
+                reward: totalValue,
+                giftPrice: baseTotal,
+                senderName: finalSender,
+              );
+            }
+          }
+
+          // Trigger Local Room Banner (Top Patti)
           broadcastProvider.showBroadcastOverlay(
             senderName: finalSender,
             senderProfileUrl: senderAvatar ?? '',
             receiverName: finalReceiver,
+            giftName: gift.name,
             giftImage: broadcastGiftImage,
             giftCount: quantity,
             giftAmount: totalValue,
@@ -3971,18 +4295,21 @@ try {
           print("⚠️ Gift ${gift.name} does not have animation file");
         }
 
-        // ✅ Always show normal gift display
-        giftDisplayProvider.addGift(
-          gift: gift,
-          senderName: senderName,
-          senderAvatar: senderAvatar,
-          receiverName: receiverName,
-          receiverAvatar: receiverAvatar,
-          quantity: quantity,
-        );
-        print(
-          "✅ Gift added to display: ${gift.name} (x$quantity) from $senderName to $receiverName",
-        );
+        // ✅ Always show normal gift display (skip Lucky gifts)
+        final isLuckyForDisplay = gift.category.toLowerCase().contains('lucky');
+        if (!isLuckyForDisplay) {
+          giftDisplayProvider.addGift(
+            gift: gift,
+            senderName: senderName,
+            senderAvatar: senderAvatar,
+            receiverName: receiverName,
+            receiverAvatar: receiverAvatar,
+            quantity: quantity,
+          );
+          print(
+            "✅ Gift added to display: ${gift.name} (x$quantity) from $senderName to $receiverName",
+          );
+        }
       }
     };
 
@@ -4194,73 +4521,172 @@ try {
       Future.microtask(() => _handleGiftSentEvent(data));
     });
 
-    // ✅ Listen for lucky_gift:result event
-    giftWsService.on('lucky_gift:result', (data) {
+    // ✅ Listen for lucky_gift:result event (and variations)
+    // ✅ Generic Handler for Lucky Gift Results to be used by multiple event names
+    final luckyGiftHandler = (dynamic data) {
+      // ... INLINE logic to fix scoping/brace issues
+      double safeDouble(dynamic value) {
+        return double.tryParse(value?.toString() ?? '') ?? 0.0;
+      }
+
       print("🍀 [RoomScreen] ========== LUCKY GIFT RESULT RECEIVED ==========");
-      print("🍀 [RoomScreen] Lucky gift result received from Gifts WebSocket");
       print("🍀 [RoomScreen] Data: $data");
 
-      // Check if belongs to this room
-      final giftRoomId = data['room_id']?.toString();
+      // Normalize payload
+      final resultPayload = (data is Map && data['data'] is Map)
+          ? Map<String, dynamic>.from(data['data'] as Map)
+          : (data is Map
+                ? Map<String, dynamic>.from(data as Map)
+                : <String, dynamic>{});
+
+      // RELAXED ROOM CHECK
+      final giftRoomId =
+          resultPayload['room_id']?.toString() ?? data['room_id']?.toString();
       if (giftRoomId != null && giftRoomId != currentRoomIdForGifts) {
         print(
-          "⏭️ [RoomScreen] Lucky result belongs to different room - ignoring",
+          "⚠️ [RoomScreen] Room ID mismatch ($giftRoomId vs $currentRoomIdForGifts) but attempting to show Lucky Banner",
         );
-        return;
       }
 
       // Extract result details
-      final reward = data['reward_type']?.toString() ?? 'reward';
-      final amount = data['amount']?.toString() ?? '0';
-      final message = data['message']?.toString() ?? 'Lucky spin completed!';
-      final receiverId = data['receiver_id']?.toString();
-      final senderId = data['sender_id']?.toString();
+      final reward = resultPayload['reward_type']?.toString() ?? 'reward';
+      final amountDouble = safeDouble(
+        resultPayload['win_coins'] ??
+            resultPayload['amount'] ??
+            resultPayload['reward_amount'] ??
+            resultPayload['win_amount'],
+      );
+      final resultMultiplier = safeDouble(
+        resultPayload['multiplier'] ??
+            resultPayload['reward_multiplier'] ??
+            resultPayload['lucky_multiplier'] ??
+            resultPayload['x'],
+      );
+      final message =
+          resultPayload['message']?.toString() ??
+          data['message']?.toString() ??
+          'Lucky spin completed!';
+      final senderId = resultPayload['sender_id']?.toString();
+      final resultGiftPrice = safeDouble(
+        resultPayload['gift_price'] ?? resultPayload['gift_value'],
+      );
 
-      print("🍀 [RoomScreen] Lucky Result Details:");
-      print("   - Reward Type: $reward");
-      print("   - Amount: $amount");
-      print("   - Message: $message");
-      print("   - Receiver ID: $receiverId");
-      print("   - Sender ID: $senderId");
-
-      // Show lucky spinner result notification
+      // Update UI
       if (mounted) {
+        final broadcastProvider = Provider.of<BroadcastProvider>(
+          context,
+          listen: false,
+        );
+        final senderKey = senderId ?? '';
+        final snapshot = _luckyGiftSnapshots[senderKey];
+        String senderName = snapshot?.senderName ?? 'User';
+        String senderAvatar = snapshot?.senderAvatar ?? '';
+        String giftName = snapshot?.giftName ?? 'Lucky';
+        final baseTotal = (resultGiftPrice > 0)
+            ? resultGiftPrice
+            : (snapshot?.baseTotal ?? 0.0);
+
+        // CALCULATE WIN
+        final calculatedWin = (baseTotal > 0 && resultMultiplier > 0)
+            ? baseTotal * resultMultiplier
+            : 0.0;
+        final finalCoins = (calculatedWin > amountDouble)
+            ? calculatedWin
+            : (amountDouble > 0 ? amountDouble : baseTotal);
+
+        // Sender info fallback
+        if (senderAvatar.isEmpty && senderKey.isNotEmpty) {
+          try {
+            final seatProvider = Provider.of<SeatProvider>(
+              context,
+              listen: false,
+            );
+            final senderSeat = seatProvider.seats.firstWhere(
+              (s) =>
+                  s.isOccupied &&
+                  (s.userId?.toString() == senderKey || s.userId == senderKey),
+            );
+            senderName =
+                senderSeat.userName ?? senderSeat.username ?? senderName;
+            senderAvatar = senderSeat.profileUrl ?? senderAvatar;
+            if (senderAvatar.isNotEmpty && !senderAvatar.startsWith('http')) {
+              senderAvatar = 'https://shaheenstar.online/$senderAvatar';
+            }
+          } catch (_) {}
+        }
+
+        // Display Logic
+        double displayMultiplier = 0.0;
+        if (resultMultiplier > 0)
+          displayMultiplier = resultMultiplier;
+        else if (baseTotal > 0 && amountDouble > 0)
+          displayMultiplier = amountDouble / baseTotal;
+        if (displayMultiplier == 0 &&
+            amountDouble == baseTotal &&
+            baseTotal > 0)
+          displayMultiplier = 1.0;
+
+        print(
+          "🍀 [RoomScreen] Display Multiplier: $displayMultiplier",
+        ); // LOGGING
+
+        if (displayMultiplier > 0) {
+          _showLuckyResultDialog(
+            multiplier: displayMultiplier.round(),
+            reward: finalCoins,
+            giftPrice: baseTotal,
+            senderName: senderName,
+          );
+        } else {
+          print(
+            "⚠️ [RoomScreen] Display Multiplier is 0, attempting fallback show...",
+          );
+          _showLuckyResultDialog(
+            multiplier: 1, // Fallback
+            reward: finalCoins,
+            giftPrice: baseTotal,
+            senderName: senderName,
+          );
+        }
+
+        // Top Banner (Patti)
+        broadcastProvider.showBroadcastOverlay(
+          senderName: senderName,
+          senderProfileUrl: senderAvatar,
+          receiverName: '',
+          giftName: giftName,
+          giftAmount: finalCoins,
+          source: 'LuckyResult',
+        );
+
+        // Show Snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('🍀 $message ($reward: $amount)'),
+            content: Text(
+              '🍀 $message ($reward: ${finalCoins.toStringAsFixed(0)})',
+            ),
             duration: Duration(seconds: 3),
             backgroundColor: Colors.green,
           ),
         );
 
-        // ✅ Refresh seats to update UI
+        // Refresh Seats & Balance
         try {
-          final seatProvider = Provider.of<SeatProvider>(
+          Provider.of<SeatProvider>(
             context,
             listen: false,
-          );
-          seatProvider.getSeats(widget.roomId.toString());
-          print("✅ [RoomScreen] Seats refreshed after lucky gift");
-        } catch (e) {
-          print("⚠️ [RoomScreen] Error refreshing seats: $e");
-        }
-
-        // ✅ Refresh user balance
+          ).getSeats(widget.roomId.toString());
+        } catch (_) {}
         try {
-          final giftProvider = Provider.of<GiftProvider>(
-            context,
-            listen: false,
-          );
-          giftProvider.fetchUserBalance();
-          print("✅ [RoomScreen] User balance refreshed after lucky gift");
-        } catch (e) {
-          print("⚠️ [RoomScreen] Error refreshing balance: $e");
-        }
+          Provider.of<GiftProvider>(context, listen: false).fetchUserBalance();
+        } catch (_) {}
       }
+    };
 
-      print("🍀 [RoomScreen] Lucky result processed and UI updated");
-      print("🍀 [RoomScreen] ==========================================");
-    });
+    // ✅ Bind Generic Handler to all Lucky Gift Event Variations
+    giftWsService.on('lucky_gift:result', luckyGiftHandler);
+    giftWsService.on('lucky_gift_result', luckyGiftHandler);
+    giftWsService.on('lucky_gift:spin_result', luckyGiftHandler);
 
     // ✅ Also listen for 'success' event as fallback
     giftWsService.on('success', (data) {
@@ -4304,11 +4730,22 @@ try {
         data['room_id']?.toString() ?? data['data']?['room_id']?.toString();
     final currentRoomId = widget.roomId.toString();
 
+    // Relaxed check for Lucky Gifts success events that might be mis-routed
+    final isLuckySuccess =
+        data['category']?.toString().contains('lucky') == true ||
+        data['gift_category']?.toString().contains('lucky') == true;
+
     if (giftRoomId != null && giftRoomId != currentRoomId) {
-      print(
-        "⏭️ [RoomScreen] Gift belongs to different room (gift room_id: $giftRoomId, current room_id: $currentRoomId) - ignoring",
-      );
-      return;
+      if (isLuckySuccess) {
+        print(
+          "⚠️ [RoomScreen] Lucky gift success with room mismatch ($giftRoomId vs $currentRoomId) - ALLOWING for update check",
+        );
+      } else {
+        print(
+          "⏭️ [RoomScreen] Gift belongs to different room (gift room_id: $giftRoomId, current room_id: $currentRoomId) - ignoring",
+        );
+        return;
+      }
     }
 
     print(
@@ -4465,6 +4902,87 @@ try {
       print("⚠️ [RoomScreen] Sender avatar is null or empty");
     }
 
+    // ✅ FORCE CHECK FOR LUCKY RESULT IN GENERIC EVENT (Fix for missing Bottom Banner)
+    // Sometimes the specific 'lucky_gift:result' event is missed, but 'gift:sent' or 'success' has the data.
+    // If multiplier is missing but it IS a lucky gift, fallback to base price so SOMETHING shows.
+    final possibleMultiplier =
+        double.tryParse(
+          data['multiplier']?.toString() ??
+              data['data']?['multiplier']?.toString() ??
+              '0',
+        ) ??
+        0.0;
+
+    final isLikelyLucky =
+        (giftName?.toLowerCase().contains('lucky') ?? false) ||
+        (data['gift_name']?.toString().toLowerCase().contains('lucky') ??
+            false);
+
+    if (possibleMultiplier > 0 || isLikelyLucky) {
+      print(
+        "🍀 [RoomScreen] _handleGiftSentEvent: Lucky Check - Multiplier: $possibleMultiplier, IsLuckyName: $isLikelyLucky",
+      );
+
+      final possibleWinCoins =
+          double.tryParse(
+            data['win_coins']?.toString() ??
+                data['data']?['win_coins']?.toString() ??
+                '0',
+          ) ??
+          0.0;
+      final possiblePrice =
+          double.tryParse(
+            data['gift_price']?.toString() ?? data['price']?.toString() ?? '0',
+          ) ??
+          0.0;
+
+      // Determine final values with fallback
+      double finalMultiplier = possibleMultiplier;
+      double finalWinAmount = 0.0;
+
+      if (finalMultiplier <= 0) {
+        // No multiplier from server? Default to 1x and Show Base Price
+        // This ensures the banner appears even if the specific result data is missing from this event
+        finalMultiplier = 1.0;
+        finalWinAmount = possibleWinCoins > 0
+            ? possibleWinCoins
+            : possiblePrice;
+        print(
+          "⚠️ [RoomScreen] Lucky Gift with NO multiplier data. Defaulting to 1x (Amount: $finalWinAmount)",
+        );
+      } else {
+        finalWinAmount = possibleWinCoins > 0
+            ? possibleWinCoins
+            : (possiblePrice * finalMultiplier);
+      }
+
+      Future.microtask(() {
+        if (mounted) {
+          _showLuckyResultDialog(
+            multiplier: finalMultiplier.round(),
+            reward: finalWinAmount,
+            giftPrice: possiblePrice,
+            senderName: senderName,
+          );
+
+          // ✅ TRIGGER TOP BANNER (PATTI) with correct multiplied amount
+          Provider.of<BroadcastProvider>(
+            context,
+            listen: false,
+          ).showBroadcastOverlay(
+            senderName: senderName,
+            senderProfileUrl: senderAvatar ?? '',
+            receiverName: receiverName,
+            giftName: giftName ?? 'Lucky Gift',
+            giftImage: '',
+            giftCount: quantity,
+            giftAmount: finalWinAmount, // MULTIPLIED (or fallback) AMOUNT
+            source: 'RoomScreen_LuckyFallback',
+          );
+        }
+      });
+    }
+
     if (receiverAvatar != null && receiverAvatar.isNotEmpty) {
       final trimmed = receiverAvatar.trim().toLowerCase();
       // ✅ Filter out invalid values
@@ -4575,7 +5093,7 @@ try {
             // Still add to gift display overlay, but don't reset the animation (unless 1L+ non-Lucky → broadcast only)
             final totalValue = (gift.price * quantity).toDouble();
             final isLucky = gift.category.toLowerCase().contains('lucky');
-            if (!(totalValue > 100000 && !isLucky)) {
+            if (!isLucky && !(totalValue > 100000 && !isLucky)) {
               final giftDisplayProvider = Provider.of<GiftDisplayProvider>(
                 context,
                 listen: false,
@@ -4594,7 +5112,9 @@ try {
 
           // ✅ For 1 lakh+ non-Lucky: broadcast only – do NOT show SVGA overlay (no green "sender send receiver" banner)
           final totalValueForOverlay = (gift.price * quantity).toDouble();
-          final isLuckyForOverlay = gift.category.toLowerCase().contains('lucky');
+          final isLuckyForOverlay = gift.category.toLowerCase().contains(
+            'lucky',
+          );
           if (totalValueForOverlay > 100000 && !isLuckyForOverlay) {
             print(
               "✅ [RoomScreen] Gift ${gift.name} (${totalValueForOverlay.toStringAsFixed(0)} coins) – broadcast only, skipping SVGA overlay (no green banner)",
@@ -4608,7 +5128,9 @@ try {
               "🎬 [RoomScreen] Showing SVGA animation overlay for ${gift.name} (quantity: $quantity)",
             );
             print("🎬 [RoomScreen] Animation URL: ${gift.animationFile}");
-            print("🎬 [RoomScreen] Sender: $senderName (Avatar: $senderAvatar)");
+            print(
+              "🎬 [RoomScreen] Sender: $senderName (Avatar: $senderAvatar)",
+            );
             print(
               "🎬 [RoomScreen] Receiver: $receiverName (Avatar: $receiverAvatar)",
             );
@@ -4631,12 +5153,16 @@ try {
               print(
                 "✅ [RoomScreen] _currentGiftAnimation: ${_currentGiftAnimation?.name}",
               );
-              print("✅ [RoomScreen] _currentGiftQuantity: $_currentGiftQuantity");
+              print(
+                "✅ [RoomScreen] _currentGiftQuantity: $_currentGiftQuantity",
+              );
               print(
                 "✅ [RoomScreen] ====================================================",
               );
             } else {
-              print("⚠️ [RoomScreen] Widget not mounted, cannot show animation");
+              print(
+                "⚠️ [RoomScreen] Widget not mounted, cannot show animation",
+              );
             }
           }
         } else {
@@ -4650,10 +5176,10 @@ try {
         print("   - animationFile: ${gift.animationFile}");
       }
 
-      // ✅ Add to gift display overlay (small notification) – skip if 1 lakh+ non-Lucky (broadcast shows instead)
+      // ✅ Add to gift display overlay (small notification) – skip Lucky and 1 lakh+ non-Lucky
       final totalValue = (gift.price * quantity).toDouble();
       final isLucky = gift.category.toLowerCase().contains('lucky');
-      if (!(totalValue > 100000 && !isLucky)) {
+      if (!isLucky && !(totalValue > 100000 && !isLucky)) {
         final giftDisplayProvider = Provider.of<GiftDisplayProvider>(
           context,
           listen: false,
@@ -4675,59 +5201,7 @@ try {
         );
       }
 
-      // ✅ If gift is lucky category, refresh seats and balance
-      if (gift.category == 'lucky') {
-        print("🍀 [RoomScreen] Lucky gift detected - refreshing UI");
-
-        // Generate random lucky multiplier (backend should do this)
-        final multipliers = [20, 50, 100];
-        final random = multipliers[DateTime.now().millisecondsSinceEpoch % 3];
-        final giftPrice = gift.price;
-        final reward = giftPrice * random;
-
-        print(
-          "🍀 [RoomScreen] Lucky Result: ${random}x multiplier = $reward coins",
-        );
-
-        // Show lucky result dialog
-        Future.delayed(Duration(milliseconds: 300), () {
-          if (mounted) {
-            _showLuckyResultDialog(
-              multiplier: random,
-              reward: reward.toDouble(),
-              giftPrice: giftPrice.toDouble(),
-            );
-          }
-        });
-
-        // Refresh seats
-        try {
-          final seatProvider = Provider.of<SeatProvider>(
-            context,
-            listen: false,
-          );
-          Future.delayed(Duration(milliseconds: 500), () {
-            seatProvider.getSeats(widget.roomId.toString());
-            print("✅ [RoomScreen] Seats refreshed after lucky gift");
-          });
-        } catch (e) {
-          print("⚠️ [RoomScreen] Error refreshing seats: $e");
-        }
-
-        // Refresh balance
-        try {
-          final giftProvider = Provider.of<GiftProvider>(
-            context,
-            listen: false,
-          );
-          Future.delayed(Duration(milliseconds: 500), () {
-            giftProvider.fetchUserBalance();
-            print("✅ [RoomScreen] Balance refreshed after lucky gift");
-          });
-        } catch (e) {
-          print("⚠️ [RoomScreen] Error refreshing balance: $e");
-        }
-      }
+      // ✅ Lucky gift UI now relies on lucky_gift:result for real multiplier values
 
       // ✅ Update receiver's diamond coins if receiver is current user
       _updateReceiverDiamondCoinsFromGift(data, receiverId);
@@ -5152,6 +5626,7 @@ try {
     required int multiplier,
     required double reward,
     required double giftPrice,
+    String senderName = 'User',
   }) {
     // Start Lucky Banner Animation (Non-modal overlay)
     if (!mounted) return;
@@ -5161,6 +5636,7 @@ try {
       _luckyMultiplier = multiplier;
       _luckyReward = reward;
       _luckyGiftPrice = giftPrice;
+      _luckySenderName = senderName;
     });
 
     // Auto-hide after 3 seconds
@@ -6036,7 +6512,10 @@ try {
               String? token;
               if (_databaseUserId != null && _databaseUserId!.isNotEmpty) {
                 try {
-                  token = await ApiManager.getZegoToken(roomId: widget.roomId.toString(), userId: _databaseUserId!);
+                  token = await ApiManager.getZegoToken(
+                    roomId: widget.roomId.toString(),
+                    userId: _databaseUserId!,
+                  );
                 } catch (_) {}
               }
               final joinSuccess = await zegoProvider.joinRoom(
@@ -6737,21 +7216,13 @@ try {
                                         child: Container(
                                           width: 80 * scale,
                                           height: 80 * scale,
-                                          decoration: BoxDecoration(
-                                            image: const DecorationImage(
+                                          decoration: const BoxDecoration(
+                                            image: DecorationImage(
                                               image: AssetImage(
-                                                'assets/images/COMBO.png',
+                                                'assets/images/combo.png',
                                               ),
                                               fit: BoxFit.contain,
                                             ),
-                                            shape: BoxShape.circle,
-                                            boxShadow: const [
-                                              BoxShadow(
-                                                color: Colors.black26,
-                                                blurRadius: 8,
-                                                offset: Offset(0, 4),
-                                              ),
-                                            ],
                                           ),
                                           alignment: Alignment.center,
                                           child: Column(
@@ -6867,155 +7338,7 @@ try {
                           ),
 
                         /// ================= OVERLAYS =================
-
                         if (_showAnnouncement) _buildAnnouncementPopup(size),
-
-                        // ✅ LUCKY GIFT BANNER OVERLAY
-                        if (_isLuckyBannerVisible)
-                          Builder(
-                            builder: (context) {
-                              final profileProvider = context
-                                  .watch<ProfileUpdateProvider>();
-                              final userName =
-                                  profileProvider.username ?? 'User';
-                              final userImage =
-                                  profileProvider.profile_url ?? '';
-
-                              return Positioned(
-                                top: 150,
-                                left: 16,
-                                right: 16,
-                                child: Container(
-                                  height: 90,
-                                  decoration: BoxDecoration(
-                                    image: DecorationImage(
-                                      image: AssetImage(
-                                        'assets/images/lucky_profile.png',
-                                      ),
-                                      fit: BoxFit.fill,
-                                    ),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20.0,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        // Avatar
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Colors.white,
-                                              width: 2,
-                                            ),
-                                          ),
-                                          child: ClipOval(
-                                            child: userImage.isNotEmpty
-                                                ? cachedImage(
-                                                    userImage,
-                                                    width: 50,
-                                                    height: 50,
-                                                    fit: BoxFit.cover,
-                                                  )
-                                                : Container(
-                                                    width: 50,
-                                                    height: 50,
-                                                    color: Colors.grey,
-                                                    child: Icon(
-                                                      Icons.person,
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                          ),
-                                        ),
-                                        SizedBox(width: 12),
-
-                                        // Name and Reward
-                                        Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              userName,
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold,
-                                                decoration:
-                                                    TextDecoration.underline,
-                                                decorationColor: Colors.amber,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Text(
-                                              _luckyReward.toStringAsFixed(0),
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        Spacer(),
-
-                                        // Multiplier Badge ("50 Times") with COMBO.png
-                                        Container(
-                                          width: 65,
-                                          height: 65,
-                                          decoration: BoxDecoration(
-                                            image: DecorationImage(
-                                              image: AssetImage(
-                                                'assets/images/COMBO.png',
-                                              ),
-                                              fit: BoxFit.contain,
-                                            ),
-                                          ),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                '$_luckyMultiplier',
-                                                style: TextStyle(
-                                                  color: Colors.yellow,
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.w900,
-                                                  shadows: [
-                                                    Shadow(
-                                                      color: Colors.black,
-                                                      blurRadius: 2,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              Text(
-                                                'Times',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  shadows: [
-                                                    Shadow(
-                                                      color: Colors.black,
-                                                      blurRadius: 2,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
 
                         if (_currentGiftAnimation != null &&
                             _currentGiftQuantity > 0)
@@ -7026,7 +7349,8 @@ try {
                             senderAvatar: _currentGiftSenderAvatar,
                             receiverName: _currentGiftReceiverName,
                             receiverAvatar: _currentGiftReceiverAvatar,
-                            isMultipleReceivers: _currentGiftIsMultipleReceivers,
+                            isMultipleReceivers:
+                                _currentGiftIsMultipleReceivers,
                             onComplete: () {
                               setState(() {
                                 _currentGiftAnimation = null;
@@ -7038,6 +7362,87 @@ try {
                                 _currentGiftIsMultipleReceivers = false;
                               });
                             },
+                          ),
+
+                        // ✅ Lucky Gift Banner - Adjusted position
+                        // Moved further down to 0.59 to completely clear the "All" tab text
+                        if (_isLuckyBannerVisible)
+                          Positioned(
+                            top: size.height * 0.59,
+                            left: 16 * scale,
+                            width: size.width * 0.70,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0x996A4B00), // Transparent Dark Gold
+                                    Color(0x99FFE08A), // Transparent Light Gold
+                                    Color(
+                                      0x999E6B00,
+                                    ), // Transparent Medium Gold
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Color(
+                                    0xCCFFD700,
+                                  ), // Slightly transparent border
+                                  width: 1.2,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black54,
+                                    blurRadius: 8,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: RichText(
+                                maxLines: 3,
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black,
+                                        blurRadius: 3,
+                                        offset: Offset(1, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Wow, congratulations to ',
+                                    ),
+                                    TextSpan(
+                                      text: _luckySenderName,
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFD700),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const TextSpan(text: ' for getting '),
+                                    TextSpan(
+                                      text: '$_luckyMultiplier times',
+                                      style: const TextStyle(
+                                        color: Color(0xFFFFE066),
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const TextSpan(
+                                      text: ' coins back in lucky gift event',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -7440,7 +7845,9 @@ try {
         ImageProvider imageProvider;
         try {
           // ✅ Priority 1: Room profile URL (network URL)
-          final roomProfileUrl = _normalizeRoomProfileUrl(widget.roomProfileUrl);
+          final roomProfileUrl = _normalizeRoomProfileUrl(
+            widget.roomProfileUrl,
+          );
           if (roomProfileUrl != null) {
             imageProvider = CachedNetworkImageProvider(roomProfileUrl);
           }
@@ -7453,7 +7860,9 @@ try {
             imageProvider = const AssetImage('assets/images/person.png');
           }
         } catch (e) {
-          print('❌ [cachedImage] Error: ${_normalizeRoomProfileUrl(widget.roomProfileUrl)} - Exception: $e');
+          print(
+            '❌ [cachedImage] Error: ${_normalizeRoomProfileUrl(widget.roomProfileUrl)} - Exception: $e',
+          );
           imageProvider = const AssetImage('assets/images/person.png');
         }
 
@@ -7717,7 +8126,10 @@ try {
       isScrollControlled: true,
       builder: (BuildContext context) {
         // Prefer listing users the current user has one-to-one chats with
-        final chatProvider = Provider.of<UserMessageProvider>(context, listen: false);
+        final chatProvider = Provider.of<UserMessageProvider>(
+          context,
+          listen: false,
+        );
         final currentNormalizedId = _normalizeUserId(_databaseUserId);
         final currentIdInt = int.tryParse(currentNormalizedId) ?? 0;
 
@@ -7728,7 +8140,9 @@ try {
         }).toList();
 
         // If there are chat contacts, show them; otherwise fall back to online room users
-        final users = usersFromChat.isNotEmpty ? usersFromChat : _usersInRoom.entries.toList();
+        final users = usersFromChat.isNotEmpty
+            ? usersFromChat
+            : _usersInRoom.entries.toList();
         final vipCount = users.length;
         final audienceCount = 0;
 
@@ -8017,177 +8431,294 @@ try {
       isScrollControlled: true,
       builder: (BuildContext context) {
         final selected = <String>{};
-        return StatefulBuilder(builder: (context, setState) {
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.7,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
               ),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Center(
-                  child: Container(width: 48, height: 4, decoration: BoxDecoration(color: Colors.black.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(children: [
-                    const Expanded(child: Text('Select members to share room', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-                    TextButton(onPressed: () {
-                      setState(() { selected.clear(); });
-                    }, child: const Text('Clear')),
-                  ]),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Consumer<UserMessageProvider>(
-                    builder: (ctx, chatProv, _) {
-                      final currentNormalizedId = _normalizeUserId(_databaseUserId);
-                      final currentIdInt = int.tryParse(currentNormalizedId) ?? 0;
-                      final usersFromChat = chatProv.chatRooms.map((room) {
-                        final otherId = room.getOtherUserId(currentIdInt).toString();
-                        final otherName = room.getOtherUserName(currentIdInt);
-                        // Prefer room-known profile, then cached chat profile
-                        String? profile = _usersInRoom[otherId]?['profileUrl'] ?? _chatUserProfiles[otherId];
-
-                        // If we still don't have a profile url, fetch it async and cache it.
-                        if (profile == null && !_chatUserProfiles.containsKey(otherId)) {
-                          final idInt = int.tryParse(otherId);
-                          if (idInt != null && idInt > 0) {
-                            ApiManager.getUserInfoById(idInt).then((ui) {
-                              if (ui != null && ui.isNotEmpty) {
-                                final avatar = ui['profile_url'] ?? ui['user_avatar'] ?? ui['avatar'] ?? ui['profile_pic'];
-                                final resolved = (avatar != null && avatar.toString().isNotEmpty)
-                                    ? (avatar.toString().startsWith('http') ? avatar.toString() : 'https://shaheenstar.online/$avatar')
-                                    : null;
-                                setState(() {
-                                  _chatUserProfiles[otherId] = resolved;
-                                });
-                              } else {
-                                setState(() {
-                                  _chatUserProfiles[otherId] = null;
-                                });
-                              }
-                            }).catchError((e) {
-                              setState(() {
-                                _chatUserProfiles[otherId] = null;
-                              });
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Select members to share room',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              selected.clear();
                             });
-                          } else {
-                            _chatUserProfiles[otherId] = null;
-                          }
-                        }
+                          },
+                          child: const Text('Clear'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Consumer<UserMessageProvider>(
+                      builder: (ctx, chatProv, _) {
+                        final currentNormalizedId = _normalizeUserId(
+                          _databaseUserId,
+                        );
+                        final currentIdInt =
+                            int.tryParse(currentNormalizedId) ?? 0;
+                        final usersFromChat = chatProv.chatRooms.map((room) {
+                          final otherId = room
+                              .getOtherUserId(currentIdInt)
+                              .toString();
+                          final otherName = room.getOtherUserName(currentIdInt);
+                          // Prefer room-known profile, then cached chat profile
+                          String? profile =
+                              _usersInRoom[otherId]?['profileUrl'] ??
+                              _chatUserProfiles[otherId];
 
-                        return MapEntry(otherId, {"name": otherName, "profileUrl": profile});
-                      }).toList();
-
-                      final displayList = usersFromChat.isNotEmpty ? usersFromChat : _usersInRoom.entries.toList();
-
-                      if (displayList.isEmpty) return const Center(child: Text('No members online'));
-
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: displayList.length,
-                        itemBuilder: (ctx, i) {
-                          final originalUserId = displayList[i].key;
-                          final info = displayList[i].value;
-                          final name = info['name'] ?? info['username'] ?? 'User';
-                          final profileUrl = info['profileUrl'];
-                          final normalized = _normalizeUserId(originalUserId);
-                          final isMe = normalized.isNotEmpty && _normalizeUserId(_databaseUserId) == normalized;
-                          return GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: isMe ? null : () {
-                              setState(() {
-                                if (selected.contains(originalUserId)) selected.remove(originalUserId);
-                                else selected.add(originalUserId);
-                              });
-                            },
-                            child: CheckboxListTile(
-                              value: selected.contains(originalUserId),
-                              onChanged: isMe
-                                  ? null
-                                  : (v) {
+                          // If we still don't have a profile url, fetch it async and cache it.
+                          if (profile == null &&
+                              !_chatUserProfiles.containsKey(otherId)) {
+                            final idInt = int.tryParse(otherId);
+                            if (idInt != null && idInt > 0) {
+                              ApiManager.getUserInfoById(idInt)
+                                  .then((ui) {
+                                    if (ui != null && ui.isNotEmpty) {
+                                      final avatar =
+                                          ui['profile_url'] ??
+                                          ui['user_avatar'] ??
+                                          ui['avatar'] ??
+                                          ui['profile_pic'];
+                                      final resolved =
+                                          (avatar != null &&
+                                              avatar.toString().isNotEmpty)
+                                          ? (avatar.toString().startsWith(
+                                                  'http',
+                                                )
+                                                ? avatar.toString()
+                                                : 'https://shaheenstar.online/$avatar')
+                                          : null;
                                       setState(() {
-                                        if (v == true)
-                                          selected.add(originalUserId);
-                                        else
+                                        _chatUserProfiles[otherId] = resolved;
+                                      });
+                                    } else {
+                                      setState(() {
+                                        _chatUserProfiles[otherId] = null;
+                                      });
+                                    }
+                                  })
+                                  .catchError((e) {
+                                    setState(() {
+                                      _chatUserProfiles[otherId] = null;
+                                    });
+                                  });
+                            } else {
+                              _chatUserProfiles[otherId] = null;
+                            }
+                          }
+
+                          return MapEntry(otherId, {
+                            "name": otherName,
+                            "profileUrl": profile,
+                          });
+                        }).toList();
+
+                        final displayList = usersFromChat.isNotEmpty
+                            ? usersFromChat
+                            : _usersInRoom.entries.toList();
+
+                        if (displayList.isEmpty)
+                          return const Center(child: Text('No members online'));
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: displayList.length,
+                          itemBuilder: (ctx, i) {
+                            final originalUserId = displayList[i].key;
+                            final info = displayList[i].value;
+                            final name =
+                                info['name'] ?? info['username'] ?? 'User';
+                            final profileUrl = info['profileUrl'];
+                            final normalized = _normalizeUserId(originalUserId);
+                            final isMe =
+                                normalized.isNotEmpty &&
+                                _normalizeUserId(_databaseUserId) == normalized;
+                            return GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTap: isMe
+                                  ? null
+                                  : () {
+                                      setState(() {
+                                        if (selected.contains(originalUserId))
                                           selected.remove(originalUserId);
+                                        else
+                                          selected.add(originalUserId);
                                       });
                                     },
-                              title: Row(children: [
-                                CircleAvatar(radius: 18, backgroundImage: _getUserAvatarProvider(profileUrl)),
-                                const SizedBox(width: 12),
-                                Expanded(child: Text(name, overflow: TextOverflow.ellipsis)),
-                              ]),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: selected.isEmpty ? null : () async {
-                            // send private chat invites to selected members
-                            final fromId = int.tryParse(_normalizeUserId(_databaseUserId));
-                            if (fromId == null || fromId == 0) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your user id not available')));
-                              return;
-                            }
-                            final roomInfo = 'Join my room: ${widget.roomId}';
-                            int success = 0;
-                            final chatProv = Provider.of<UserChatProvider>(context, listen: false);
-                            for (final to in selected) {
-                              final toId = int.tryParse(_normalizeUserId(to));
-                              if (toId == null || toId == 0) continue;
-                              try {
-                                final existing = chatProv.getChatroomByUserId(toId);
-                                var room = existing;
-                                if (room == null) {
-                                  room = await chatProv.createChatroom(toId);
-                                }
-
-                                if (room != null) {
-                                  await chatProv.setCurrentChatroom(room.id);
-                                  final ok = await chatProv.sendChatMessage(roomInfo);
-                                  if (ok) success++;
-                                } else {
-                                  // fallback to HTTP send when chatroom couldn't be created
-                                  final ok = await ApiManager.sendChatMessage(fromUserId: fromId, toUserId: toId, message: roomInfo);
-                                  if (ok) success++;
-                                }
-                              } catch (e) {
-                                print('[ShareToMembers] send error for $toId: $e');
-                                try {
-                                  final ok = await ApiManager.sendChatMessage(fromUserId: fromId, toUserId: toId, message: roomInfo);
-                                  if (ok) success++;
-                                } catch (_) {}
-                              }
-                            }
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(content: Text('Shared with $success/${selected.length}')));
+                              child: CheckboxListTile(
+                                value: selected.contains(originalUserId),
+                                onChanged: isMe
+                                    ? null
+                                    : (v) {
+                                        setState(() {
+                                          if (v == true)
+                                            selected.add(originalUserId);
+                                          else
+                                            selected.remove(originalUserId);
+                                        });
+                                      },
+                                title: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundImage: _getUserAvatarProvider(
+                                        profileUrl,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
                           },
-                          child: const Padding(padding: EdgeInsets.symmetric(vertical:12), child: Text('Share')),
-                        ),
-                      ),
-                    ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        });
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: selected.isEmpty
+                                ? null
+                                : () async {
+                                    // send private chat invites to selected members
+                                    final fromId = int.tryParse(
+                                      _normalizeUserId(_databaseUserId),
+                                    );
+                                    if (fromId == null || fromId == 0) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Your user id not available',
+                                          ),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    final roomInfo =
+                                        'Join my room: ${widget.roomId}';
+                                    int success = 0;
+                                    final chatProv =
+                                        Provider.of<UserChatProvider>(
+                                          context,
+                                          listen: false,
+                                        );
+                                    for (final to in selected) {
+                                      final toId = int.tryParse(
+                                        _normalizeUserId(to),
+                                      );
+                                      if (toId == null || toId == 0) continue;
+                                      try {
+                                        final existing = chatProv
+                                            .getChatroomByUserId(toId);
+                                        var room = existing;
+                                        if (room == null) {
+                                          room = await chatProv.createChatroom(
+                                            toId,
+                                          );
+                                        }
+
+                                        if (room != null) {
+                                          await chatProv.setCurrentChatroom(
+                                            room.id,
+                                          );
+                                          final ok = await chatProv
+                                              .sendChatMessage(roomInfo);
+                                          if (ok) success++;
+                                        } else {
+                                          // fallback to HTTP send when chatroom couldn't be created
+                                          final ok =
+                                              await ApiManager.sendChatMessage(
+                                                fromUserId: fromId,
+                                                toUserId: toId,
+                                                message: roomInfo,
+                                              );
+                                          if (ok) success++;
+                                        }
+                                      } catch (e) {
+                                        print(
+                                          '[ShareToMembers] send error for $toId: $e',
+                                        );
+                                        try {
+                                          final ok =
+                                              await ApiManager.sendChatMessage(
+                                                fromUserId: fromId,
+                                                toUserId: toId,
+                                                message: roomInfo,
+                                              );
+                                          if (ok) success++;
+                                        } catch (_) {}
+                                      }
+                                    }
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(
+                                      this.context,
+                                    ).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Shared with $success/${selected.length}',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Text('Share'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
       },
     );
   }
@@ -8510,47 +9041,35 @@ try {
                                 ),
                               ),
                             )
-                          : Container(
+                          : SizedBox(
                               width: seatSize,
                               height: seatSize,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(100),
-                                image: DecorationImage(
-                                  image: AssetImage('assets/icons/808.png'),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/icons/room_seat.png',
                                   fit: BoxFit.cover,
                                 ),
                               ),
                             ),
-                      // ✅ User avatar if occupied - Show profile image with purchased frame
+                      // ✅ User avatar if occupied - keep SVG visible as base
                       if (isOccupied)
-                        ClipOval(
-                          child:
-                              // isCurrentUser
-                              //     ?
-                              ProfileWithFrame(
-                                userId: (seat.userId != null && seat.userId!.isNotEmpty && seat.userId != '0') ? seat.userId : null,
-                                size: seatSize,
-                                profileUrl: seat.profileUrl,
-                                showPlaceholder: true,
-                                fitToSize:
-                                    true, // ✅ Fit frame within exact size to not disturb seat
-                              ),
-
-                          // : Container(
-                          //     width: 55,
-                          //     height: 55,
-                          //     decoration: BoxDecoration(
-                          //       shape: BoxShape.circle,
-                          //       border: Border.all(color: Colors.orange, width: 2),
-                          //     ),
-                          //     child: CircleAvatar(
-                          //       radius: 21,
-                          //       backgroundImage: _getProfileImage(
-                          //         seat.profileUrl,
-                          //         isCurrentUser,
-                          //       ),
-                          //     ),
-                          //   ),
+                        SizedBox(
+                          width: seatSize * 0.72,
+                          height: seatSize * 0.72,
+                          child: ClipOval(
+                            child: ProfileWithFrame(
+                              userId:
+                                  (seat.userId != null &&
+                                      seat.userId!.isNotEmpty &&
+                                      seat.userId != '0')
+                                  ? seat.userId
+                                  : null,
+                              size: seatSize * 0.72,
+                              profileUrl: seat.profileUrl,
+                              showPlaceholder: true,
+                              fitToSize: true,
+                            ),
+                          ),
                         ),
 
                       // ✅ Microphone mute/unmute button (only for current user when on seat)
@@ -10251,7 +10770,8 @@ try {
           onRoomUpdated: (newName, newProfile) {
             setState(() {
               _displayRoomName = newName;
-              if (newProfile != null && newProfile.isNotEmpty) _displayRoomProfileUrl = newProfile;
+              if (newProfile != null && newProfile.isNotEmpty)
+                _displayRoomProfileUrl = newProfile;
             });
           },
         ),
@@ -10456,7 +10976,8 @@ try {
           onRoomUpdated: (newName, newProfile) {
             setState(() {
               _displayRoomName = newName;
-              if (newProfile != null && newProfile.isNotEmpty) _displayRoomProfileUrl = newProfile;
+              if (newProfile != null && newProfile.isNotEmpty)
+                _displayRoomProfileUrl = newProfile;
             });
           },
         ),

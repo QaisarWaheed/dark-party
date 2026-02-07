@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shaheen_star_app/controller/provider/user_message_provider.dart';
 import 'package:shaheen_star_app/model/admin_message_model.dart';
+import 'package:shaheen_star_app/model/user_system_message_model.dart';
 
 class AdminMessagesScreen extends StatefulWidget {
   const AdminMessagesScreen({super.key});
@@ -74,7 +75,12 @@ class _AdminMessagesScreenState extends State<AdminMessagesScreen> {
       );
     }
 
-    if (provider.adminMessages.isEmpty) {
+    // Combine both lists
+    final allMessages = <dynamic>[];
+    allMessages.addAll(provider.adminMessages);
+    allMessages.addAll(provider.systemMessages);
+
+    if (allMessages.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -82,12 +88,12 @@ class _AdminMessagesScreenState extends State<AdminMessagesScreen> {
             Icon(Icons.notifications_none, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 16),
             const Text(
-              'No admin messages',
+              'No messages',
               style: TextStyle(fontSize: 18, color: Colors.grey),
             ),
             const SizedBox(height: 8),
             const Text(
-              'You will see admin notifications here',
+              'You will see admin & system notifications here',
               style: TextStyle(color: Colors.grey),
             ),
           ],
@@ -95,107 +101,51 @@ class _AdminMessagesScreenState extends State<AdminMessagesScreen> {
       );
     }
 
+    // Sort by date (descending)
+    allMessages.sort((a, b) {
+      DateTime dateA = DateTime(1970);
+      DateTime dateB = DateTime(1970);
+
+      if (a is AdminMessage) {
+        dateA = a.createdAt;
+      } else if (a is UserSystemMessage) {
+        dateA = a.createdAtDate ?? DateTime(1970);
+      }
+
+      if (b is AdminMessage) {
+        dateB = b.createdAt;
+      } else if (b is UserSystemMessage) {
+        dateB = b.createdAtDate ?? DateTime(1970);
+      }
+
+      return dateB.compareTo(dateA);
+    });
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: provider.adminMessages.length,
+      itemCount: allMessages.length,
       itemBuilder: (context, index) {
-        return _buildAdminMessageCard(provider.adminMessages[index]);
+        final message = allMessages[index];
+        if (message is AdminMessage) {
+          return _buildAdminMessageCard(message);
+        } else if (message is UserSystemMessage) {
+          return _buildUserSystemMessageCard(message);
+        }
+        return const SizedBox();
       },
     );
   }
 
-  // Widget _buildAdminMessageCard(AdminMessage message) {
-  //   return Card(
-  //     margin: const EdgeInsets.only(bottom: 12),
-  //     elevation: 2,
-  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           // Header
-  //           Row(
-  //             children: [
-  //               const Icon(Icons.notifications, color: Colors.orange),
-  //               const SizedBox(width: 8),
-  //               const Text(
-  //                 'Admin Notification',
-  //                 style: TextStyle(
-  //                   fontWeight: FontWeight.bold,
-  //                   color: Colors.orange,
-  //                 ),
-  //               ),
-  //               const Spacer(),
-  //               Text(
-  //                 _formatDate(message.createdAt),
-  //                 style: const TextStyle(fontSize: 12, color: Colors.grey),
-  //               ),
-  //             ],
-  //           ),
-  //           const SizedBox(height: 12),
-  //           // Title
-  //           Text(
-  //             message.title,
-  //             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-  //           ),
-  //           const SizedBox(height: 8),
-  //           // Content
-  //           Text(
-  //             message.content,
-  //             style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-  //           ),
-  //           const SizedBox(height: 12),
-  //           // Footer
-  //           Row(
-  //             children: [
-  //               const Icon(Icons.flag, size: 16, color: Colors.grey),
-  //               const SizedBox(width: 4),
-  //               Text(
-  //                 'Country: ${message.country}',
-  //                 style: const TextStyle(fontSize: 12, color: Colors.grey),
-  //               ),
-  //               const Spacer(),
-  //               const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-  //               const SizedBox(width: 4),
-  //               Text(
-  //                 message.formattedDate,
-  //                 style: const TextStyle(fontSize: 12, color: Colors.grey),
-  //               ),
-  //             ],
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // String _formatDate(DateTime date) {
-  //   final now = DateTime.now();
-  //   final difference = now.difference(date);
-
-  //   if (difference.inMinutes < 1) return 'Just now';
-  //   if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
-  //   if (difference.inHours < 24) return '${difference.inHours}h ago';
-  //   if (difference.inDays < 7) return '${difference.inDays}d ago';
-  //   return '${date.day}/${date.month}/${date.year}';
-  // }
-
   Widget _buildAdminMessageCard(AdminMessage message) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 6),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
+          const CircleAvatar(
             radius: 18,
-            backgroundImage: AssetImage(
-              'assets/images/app_logo.jpeg',
-            ), // ✅ AssetImage use karo
-            // backgroundColor: Colors.grey[200], // optional fallback color
+            backgroundImage: AssetImage('assets/images/app_logo.jpeg'),
           ),
-
-          // Message Text
           const SizedBox(width: 8),
           Expanded(
             child: Container(
@@ -211,16 +161,100 @@ class _AdminMessagesScreenState extends State<AdminMessagesScreen> {
                   ),
                 ],
               ),
-              child: Text(
-                message.content,
-                style: const TextStyle(fontSize: 14, color: Colors.black87),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.content,
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(message.createdAt),
+                    style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                  ),
+                ],
               ),
             ),
           ),
-
-          // Right side logo
         ],
       ),
     );
+  }
+
+  Widget _buildUserSystemMessageCard(UserSystemMessage message) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CircleAvatar(
+            radius: 18,
+            backgroundColor: Color(0xFFE3F2FD), // Light Blue
+            child: Icon(
+              Icons.notifications_active,
+              color: Colors.blue,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blue.withOpacity(0.1)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.message,
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  ),
+                  if (message.amount != null && message.amount! > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Amount: ${message.amount}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    message.createdAtDate != null
+                        ? _formatDate(message.createdAtDate!)
+                        : (message.createdAt ?? ''),
+                    style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+    return '${date.day}/${date.month}/${date.year}';
   }
 }

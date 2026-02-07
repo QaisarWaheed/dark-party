@@ -39,7 +39,11 @@ class GiftDisplayOverlay extends StatelessWidget {
     );
   }
 
-  Widget _buildGiftItem(BuildContext context, ActiveGift activeGift, int index) {
+  Widget _buildGiftItem(
+    BuildContext context,
+    ActiveGift activeGift,
+    int index,
+  ) {
     final screenWidth = MediaQuery.of(context).size.width;
 
     // Calculate position - spread gifts across the screen
@@ -70,7 +74,7 @@ class GiftDisplayOverlay extends StatelessWidget {
   Widget _buildGiftCard(BuildContext context, ActiveGift activeGift) {
     // Special lucky gift presentation
     if (activeGift.gift.category.toLowerCase() == 'lucky') {
-      return _buildLuckyGiftCard(context, activeGift);
+      return const SizedBox.shrink();
     }
 
     return Container(
@@ -94,10 +98,7 @@ class GiftDisplayOverlay extends StatelessWidget {
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1.5,
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -111,16 +112,18 @@ class GiftDisplayOverlay extends StatelessWidget {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: Colors.white,
-                backgroundImage: activeGift.senderAvatar != null &&
+                backgroundImage:
+                    activeGift.senderAvatar != null &&
                         activeGift.senderAvatar!.isNotEmpty &&
                         (activeGift.senderAvatar!.startsWith('http://') ||
-                         activeGift.senderAvatar!.startsWith('https://'))
+                            activeGift.senderAvatar!.startsWith('https://'))
                     ? NetworkImage(activeGift.senderAvatar!)
                     : null,
-                child: activeGift.senderAvatar == null ||
+                child:
+                    activeGift.senderAvatar == null ||
                         activeGift.senderAvatar!.isEmpty ||
                         (!activeGift.senderAvatar!.startsWith('http://') &&
-                         !activeGift.senderAvatar!.startsWith('https://'))
+                            !activeGift.senderAvatar!.startsWith('https://'))
                     ? const Icon(Icons.person, size: 16, color: Colors.purple)
                     : null,
               ),
@@ -210,11 +213,7 @@ class GiftDisplayOverlay extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.favorite,
-                color: Colors.red,
-                size: 12,
-              ),
+              const Icon(Icons.favorite, color: Colors.red, size: 12),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
@@ -260,10 +259,16 @@ class GiftDisplayOverlay extends StatelessWidget {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: Colors.white,
-                backgroundImage: activeGift.senderAvatar != null && activeGift.senderAvatar!.isNotEmpty && (activeGift.senderAvatar!.startsWith('http') || activeGift.senderAvatar!.startsWith('https'))
+                backgroundImage:
+                    activeGift.senderAvatar != null &&
+                        activeGift.senderAvatar!.isNotEmpty &&
+                        (activeGift.senderAvatar!.startsWith('http') ||
+                            activeGift.senderAvatar!.startsWith('https'))
                     ? NetworkImage(activeGift.senderAvatar!) as ImageProvider
                     : null,
-                child: activeGift.senderAvatar == null || activeGift.senderAvatar!.isEmpty
+                child:
+                    activeGift.senderAvatar == null ||
+                        activeGift.senderAvatar!.isEmpty
                     ? const Icon(Icons.person, color: Colors.deepPurple)
                     : null,
               ),
@@ -286,10 +291,16 @@ class GiftDisplayOverlay extends StatelessWidget {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: Colors.white,
-                backgroundImage: activeGift.receiverAvatar != null && activeGift.receiverAvatar!.isNotEmpty && (activeGift.receiverAvatar!.startsWith('http') || activeGift.receiverAvatar!.startsWith('https'))
+                backgroundImage:
+                    activeGift.receiverAvatar != null &&
+                        activeGift.receiverAvatar!.isNotEmpty &&
+                        (activeGift.receiverAvatar!.startsWith('http') ||
+                            activeGift.receiverAvatar!.startsWith('https'))
                     ? NetworkImage(activeGift.receiverAvatar!) as ImageProvider
                     : null,
-                child: activeGift.receiverAvatar == null || activeGift.receiverAvatar!.isEmpty
+                child:
+                    activeGift.receiverAvatar == null ||
+                        activeGift.receiverAvatar!.isEmpty
                     ? const Icon(Icons.person, color: Colors.deepPurple)
                     : null,
               ),
@@ -298,7 +309,10 @@ class GiftDisplayOverlay extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${activeGift.senderName} → ${activeGift.receiverName}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -306,8 +320,17 @@ class GiftDisplayOverlay extends StatelessWidget {
           if (activeGift.quantity > 1)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(8)),
-              child: Text('x${activeGift.quantity}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'x${activeGift.quantity}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
         ],
       ),
@@ -317,7 +340,8 @@ class GiftDisplayOverlay extends StatelessWidget {
   /// Helper: Build gift image widget with local path detection
   Widget _buildGiftImageWidget(String imageUrl) {
     // ✅ Check if it's a local file path (don't load as network URL)
-    bool isLocalPath = imageUrl.startsWith('/data/') ||
+    bool isLocalPath =
+        imageUrl.startsWith('/data/') ||
         imageUrl.startsWith('/storage/') ||
         imageUrl.startsWith('/private/') ||
         imageUrl.startsWith('/var/') ||
@@ -328,9 +352,11 @@ class GiftDisplayOverlay extends StatelessWidget {
         imageUrl.contains('/com.') ||
         imageUrl.startsWith('file://') ||
         imageUrl.contains('/data/user/');
-    
+
     if (isLocalPath) {
-      print("⚠️ [GiftDisplayOverlay] Gift image is local file path, cannot load as network URL: $imageUrl");
+      print(
+        "⚠️ [GiftDisplayOverlay] Gift image is local file path, cannot load as network URL: $imageUrl",
+      );
       return Container(
         color: Colors.purple.withOpacity(0.5),
         child: const Icon(
@@ -340,13 +366,13 @@ class GiftDisplayOverlay extends StatelessWidget {
         ),
       );
     }
-    
+
     // ✅ Normalize URL if needed (only for server paths)
     String normalizedImageUrl = imageUrl;
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
       normalizedImageUrl = 'https://shaheenstar.online/$imageUrl';
     }
-    
+
     return CachedNetworkImage(
       imageUrl: normalizedImageUrl,
       fit: BoxFit.cover,
@@ -364,12 +390,14 @@ class GiftDisplayOverlay extends StatelessWidget {
   /// Build gift media widget - shows animation/video if available, otherwise shows static image
   Widget _buildGiftMedia(GiftModel gift) {
     // ✅ Priority 1: Check if gift has animation file (video/GIF/animation)
-    if (gift.hasAnimation && gift.animationFile != null && gift.animationFile!.isNotEmpty) {
+    if (gift.hasAnimation &&
+        gift.animationFile != null &&
+        gift.animationFile!.isNotEmpty) {
       final animUrl = gift.animationFile!;
       final lowerUrl = animUrl.toLowerCase();
-      
+
       print("🎬 [GiftDisplayOverlay] Displaying animation file: $animUrl");
-      
+
       // Check file type
       if (lowerUrl.contains('.gif') || lowerUrl.contains('gif')) {
         // ✅ GIF file - CachedNetworkImage supports GIFs natively
@@ -384,11 +412,11 @@ class GiftDisplayOverlay extends StatelessWidget {
           ),
           errorWidget: (context, url, error) => _buildFallbackImage(gift),
         );
-      } else if (lowerUrl.contains('.mp4') || 
-                 lowerUrl.contains('.webm') || 
-                 lowerUrl.contains('.mov') ||
-                 lowerUrl.contains('video') ||
-                 lowerUrl.contains('.svga')) {
+      } else if (lowerUrl.contains('.mp4') ||
+          lowerUrl.contains('.webm') ||
+          lowerUrl.contains('.mov') ||
+          lowerUrl.contains('video') ||
+          lowerUrl.contains('.svga')) {
         // ✅ Video or animation file - show with play icon overlay
         return Stack(
           fit: StackFit.expand,
@@ -435,13 +463,14 @@ class GiftDisplayOverlay extends StatelessWidget {
         );
       }
     }
-    
+
     // ✅ Priority 2: Fall back to static image if no animation
     if (gift.image != null && gift.image!.isNotEmpty) {
       final imageUrl = gift.image!;
-      
+
       // ✅ Check if it's a local file path (don't load as network URL)
-      bool isLocalPath = imageUrl.startsWith('/data/') ||
+      bool isLocalPath =
+          imageUrl.startsWith('/data/') ||
           imageUrl.startsWith('/storage/') ||
           imageUrl.startsWith('/private/') ||
           imageUrl.startsWith('/var/') ||
@@ -452,19 +481,23 @@ class GiftDisplayOverlay extends StatelessWidget {
           imageUrl.contains('/com.') ||
           imageUrl.startsWith('file://') ||
           imageUrl.contains('/data/user/');
-      
+
       if (isLocalPath) {
-        print("⚠️ [GiftDisplayOverlay] Gift image is local file path, cannot load as network URL: $imageUrl");
+        print(
+          "⚠️ [GiftDisplayOverlay] Gift image is local file path, cannot load as network URL: $imageUrl",
+        );
         return const SizedBox.shrink(); // Return empty for local paths
       }
-      
+
       // ✅ Normalize URL if needed (only for server paths)
       String normalizedImageUrl = imageUrl;
       if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
         normalizedImageUrl = 'https://shaheenstar.online/$imageUrl';
       }
-      
-      print("🖼️ [GiftDisplayOverlay] Displaying static image: $normalizedImageUrl");
+
+      print(
+        "🖼️ [GiftDisplayOverlay] Displaying static image: $normalizedImageUrl",
+      );
       return CachedNetworkImage(
         imageUrl: normalizedImageUrl,
         fit: BoxFit.cover,
@@ -477,18 +510,13 @@ class GiftDisplayOverlay extends StatelessWidget {
         errorWidget: (context, url, error) => _buildFallbackImage(gift),
       );
     }
-    
+
     // ✅ Priority 3: Fallback icon
     return _buildFallbackImage(gift);
   }
 
   /// Build fallback icon when image/animation fails to load
   Widget _buildFallbackImage(GiftModel gift) {
-    return const Icon(
-      Icons.card_giftcard,
-      color: Colors.white,
-      size: 30,
-    );
+    return const Icon(Icons.card_giftcard, color: Colors.white, size: 30);
   }
 }
-
