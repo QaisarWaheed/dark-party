@@ -355,7 +355,7 @@ class SignUpProvider with ChangeNotifier {
 
       // ✅ Google Sign In
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-  
+
       if (googleUser == null) {
         print('⚠️ User cancelled Google sign in');
         _isLoading = false;
@@ -395,7 +395,7 @@ class SignUpProvider with ChangeNotifier {
       print("👤 Username: $name");
 
       print("🔄 Checking for existing user (Login First)...");
-      
+
       UserSignUpModel? loginUser;
       try {
         loginUser = await ApiManager.googleLogin(google_id: uid);
@@ -423,17 +423,17 @@ class SignUpProvider with ChangeNotifier {
         print('🚫 User is BANNED!');
         print('🚫 Message: ${e.message}');
         print('🚫 Ban Details: ${e.banDetails}');
-        
+
         _isLoading = false;
         notifyListeners();
-        
+
         // Sign out the user
         await _googleSignIn.signOut();
-        
+
         if (context.mounted) {
           final banReason = e.banDetails['ban_reason'] ?? 'No reason provided';
           final bannedUntil = e.banDetails['banned_until'] ?? 'Permanent';
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -451,7 +451,7 @@ class SignUpProvider with ChangeNotifier {
       } catch (e) {
         print('⚠️ Login API error: $e');
       }
-      
+
       // 🔹 STEP 2 — Login returned null, try Signup (new user)
       if (loginUser == null) {
         // 🔹 STEP 2 — Login failed, try Signup (new user)
@@ -544,16 +544,20 @@ class SignUpProvider with ChangeNotifier {
       // ✅ Handle PlatformException (Google Sign In errors)
       print('❌ Google SignIn PlatformException: ${e.code} - ${e.message}');
       print('❌ Details: ${e.details}');
-      
+
       String errorMessage = 'Google Sign In failed. Please try again.';
-      
+
       // ✅ Specific error messages based on error code
       if (e.code == 'sign_in_failed') {
         if (e.message?.contains('ApiException: 10') == true) {
-          errorMessage = 'Google Sign In configuration error. Please check app settings.';
-          print('⚠️ DEVELOPER_ERROR (10): Check SHA-1 fingerprint and OAuth client ID configuration');
+          errorMessage =
+              'Google Sign In configuration error. Please check app settings.';
+          print(
+            '⚠️ DEVELOPER_ERROR (10): Check SHA-1 fingerprint and OAuth client ID configuration',
+          );
         } else {
-          errorMessage = 'Google Sign In failed. Please check your internet connection and try again.';
+          errorMessage =
+              'Google Sign In failed. Please check your internet connection and try again.';
         }
       } else if (e.code == 'network_error') {
         errorMessage = 'Network error. Please check your internet connection.';
@@ -563,7 +567,7 @@ class SignUpProvider with ChangeNotifier {
         notifyListeners();
         return; // Don't show error for user cancellation
       }
-      
+
       _errorMessage = errorMessage;
 
       if (context.mounted) {
@@ -621,6 +625,13 @@ class SignUpProvider with ChangeNotifier {
       print(
         '💾 Saved Merchant Status: ${user.merchant} (isMerchant: ${user.isMerchant})',
       );
+    }
+
+    // ✅ SAVE WEALTH LEVEL
+    if (user.wealthLevel != null) {
+      await prefs.setInt('wealth_level_$userId', user.wealthLevel!);
+      await prefs.setInt('wealth_level', user.wealthLevel!); // Global key
+      print('💾 Saved Wealth Level: ${user.wealthLevel}');
     }
 
     // ✅ SAVE AGENCY INFO (NEW STRUCTURE)

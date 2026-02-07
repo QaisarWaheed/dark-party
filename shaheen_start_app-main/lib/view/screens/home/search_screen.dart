@@ -235,22 +235,19 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final String topBg = 'assets/images/bg_home.png';
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // Top Background (same as home screen)
+          // Plain white background for this page
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: Image.asset(
-              topBg,
+            child: Container(
               width: size.width,
-              fit: BoxFit.cover,
               height: size.height * 0.25,
+              color: Colors.white,
             ),
           ),
           // Main content

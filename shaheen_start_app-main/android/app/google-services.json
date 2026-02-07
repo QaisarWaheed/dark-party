@@ -130,6 +130,14 @@
           }
         },
         {
+          "client_id": "828536498276-g4prr88sned9sep8osc9imctacqqss17.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.skylogicsolutions.shaheenstar",
+            "certificate_hash": "66c0d12c78137ae14dacf6c6db94dcc0396399da"
+          }
+        },
+        {
           "client_id": "828536498276-gr67265c6ggq1vtd4j1bf5bm53tf3jh7.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

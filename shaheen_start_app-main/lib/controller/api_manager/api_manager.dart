@@ -31,7 +31,7 @@ import '../../model/room_gift_response.dart';
 class EmailAlreadyExistsException implements Exception {
   final String message;
   EmailAlreadyExistsException(this.message);
-  
+
   @override
   String toString() => message;
 }
@@ -39,28 +39,32 @@ class EmailAlreadyExistsException implements Exception {
 class BannedUserException implements Exception {
   final String message;
   final Map<String, dynamic> banDetails;
-  
-  BannedUserException({
-    required this.message,
-    required this.banDetails,
-  });
-  
+
+  BannedUserException({required this.message, required this.banDetails});
+
   @override
   String toString() => message;
 }
 
 class ApiManager {
-
   // Generate BAISHUN signature fields: nonce, timestamp, signature, app_id, optional app_channel.
-  static Map<String, String> _generateSignatureFields({bool includeChannel = true}) {
+  static Map<String, String> _generateSignatureFields({
+    bool includeChannel = true,
+  }) {
     final rnd = Random.secure();
     final bytes = List<int>.generate(8, (_) => rnd.nextInt(256));
-    final signatureNonce = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-    final timestamp = (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000).toString();
+    final signatureNonce = bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final timestamp = (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000)
+        .toString();
     // Warn if the BAISHUN AppKey has not been configured.
-    if (ApiConstants.baishunAppKey.isEmpty || ApiConstants.baishunAppKey.contains('REPLACE')) {
+    if (ApiConstants.baishunAppKey.isEmpty ||
+        ApiConstants.baishunAppKey.contains('REPLACE')) {
       print('[ApiManager] WARNING: ApiConstants.baishunAppKey is not set.');
-      print('[ApiManager] Please set the real BAISHUN AppKey in ApiConstants.baishunAppKey (do NOT commit secrets).');
+      print(
+        '[ApiManager] Please set the real BAISHUN AppKey in ApiConstants.baishunAppKey (do NOT commit secrets).',
+      );
     }
 
     final data = signatureNonce + ApiConstants.baishunAppKey + timestamp;
@@ -76,7 +80,12 @@ class ApiManager {
   }
 
   // Debug helper: try different signature concatenation orders to diagnose signature failures.
-  static Future<Map<String, String>> _tryAlternateSignatures(Uri uri, String appId, int gameListType, {required Map<String, String> sigFields}) async {
+  static Future<Map<String, String>> _tryAlternateSignatures(
+    Uri uri,
+    String appId,
+    int gameListType, {
+    required Map<String, String> sigFields,
+  }) async {
     final nonce = sigFields['signature_nonce'] ?? '';
     final ts = sigFields['timestamp'] ?? '';
     final appKey = ApiConstants.baishunAppKey;
@@ -88,22 +97,35 @@ class ApiManager {
     };
 
     final results = <String, String>{};
-    final headers = {'Content-Type': 'application/json', 'Accept': 'application/json'};
+    final headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
 
     for (final entry in orders.entries) {
       try {
-        final s = md5.convert(utf8.encode(entry.value)).toString().toLowerCase();
+        final s = md5
+            .convert(utf8.encode(entry.value))
+            .toString()
+            .toLowerCase();
         final payload = json.encode({
           'signature_nonce': nonce,
-          'timestamp': int.tryParse(ts) ?? DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
+          'timestamp':
+              int.tryParse(ts) ??
+              DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
           'signature': s,
           'app_id': int.tryParse(appId) ?? appId,
           'app_channel': ApiConstants.baishunAppChannel,
           'game_list_type': gameListType,
         });
-        print('[ApiManager] AltSig attempt ${entry.key} -> signature:$s payload:$payload');
-        final resp = await http.post(uri, headers: headers, body: payload).timeout(const Duration(seconds: 6));
-        results[entry.key] = 'status:${resp.statusCode} body:${resp.body.length>300?"${resp.body.substring(0,300)}...":resp.body}';
+        print(
+          '[ApiManager] AltSig attempt ${entry.key} -> signature:$s payload:$payload',
+        );
+        final resp = await http
+            .post(uri, headers: headers, body: payload)
+            .timeout(const Duration(seconds: 6));
+        results[entry.key] =
+            'status:${resp.statusCode} body:${resp.body.length > 300 ? "${resp.body.substring(0, 300)}..." : resp.body}';
       } catch (e) {
         results[entry.key] = 'error:$e';
       }
@@ -113,18 +135,28 @@ class ApiManager {
   }
 
   // Helper: POST with automatic local fallback when production returns 404 or fails.
-  static Future<http.Response?> _postWithFallback(Uri uri, {Map<String, String>? headers, Map<String, String>? body}) async {
+  static Future<http.Response?> _postWithFallback(
+    Uri uri, {
+    Map<String, String>? headers,
+    Map<String, String>? body,
+  }) async {
     try {
       // Try primary
       final primaryResp = await http.post(uri, headers: headers, body: body);
       if (primaryResp.statusCode != 404) return primaryResp;
-      print('[ApiManager] Primary returned 404 for ${uri.toString()}, attempting local fallback');
+      print(
+        '[ApiManager] Primary returned 404 for ${uri.toString()}, attempting local fallback',
+      );
     } catch (e) {
-      print('[ApiManager] Primary POST failed for ${uri.toString()}: $e — attempting local fallback');
+      print(
+        '[ApiManager] Primary POST failed for ${uri.toString()}: $e — attempting local fallback',
+      );
     }
     // If local fallback is disabled, return null instead of trying 127.0.0.1
     if (!ApiConstants.enableLocalFallback) {
-      print('[ApiManager] Local fallback disabled (ApiConstants.enableLocalFallback=false). Not attempting local POST.');
+      print(
+        '[ApiManager] Local fallback disabled (ApiConstants.enableLocalFallback=false). Not attempting local POST.',
+      );
       return null;
     }
 
@@ -133,18 +165,29 @@ class ApiManager {
       final primaryStr = uri.toString();
       final fallbackBase = 'http://127.0.0.1:8080/';
       if (primaryStr.startsWith(ApiConstants.baseUrl)) {
-        final fallbackStr = primaryStr.replaceFirst(ApiConstants.baseUrl, fallbackBase);
+        final fallbackStr = primaryStr.replaceFirst(
+          ApiConstants.baseUrl,
+          fallbackBase,
+        );
         final fallbackUri = Uri.parse(fallbackStr);
         try {
-          final fallbackResp = await http.post(fallbackUri, headers: headers, body: body);
-          print('[ApiManager] Fallback POST to $fallbackStr status: ${fallbackResp.statusCode}');
+          final fallbackResp = await http.post(
+            fallbackUri,
+            headers: headers,
+            body: body,
+          );
+          print(
+            '[ApiManager] Fallback POST to $fallbackStr status: ${fallbackResp.statusCode}',
+          );
           return fallbackResp;
         } catch (e) {
           print('[ApiManager] Fallback POST failed for $fallbackStr: $e');
           return null;
         }
       } else {
-        print('[ApiManager] Primary URI does not start with ApiConstants.baseUrl; no fallback attempted');
+        print(
+          '[ApiManager] Primary URI does not start with ApiConstants.baseUrl; no fallback attempted',
+        );
         return null;
       }
     } catch (e) {
@@ -174,7 +217,7 @@ class ApiManager {
       request.fields['google_id'] = google_id.trim();
       request.fields['username'] = username.trim();
       request.fields['email'] = email.trim();
-      
+
       // ✅ Add name field if provided (from Google account or user input)
       if (name != null && name.isNotEmpty) {
         request.fields['name'] = name.trim();
@@ -202,13 +245,14 @@ class ApiManager {
           // ✅ Extract token from top-level response
           final token = data['token']?.toString();
           print('🔑 Token from response: ${token != null ? "exists" : "null"}');
-          
+
           // ✅ Create user model and add token if available
           final userJson = Map<String, dynamic>.from(data['user']);
           if (token != null && token.isNotEmpty) {
-            userJson['api_token'] = token; // Add token to user object for model parsing
+            userJson['api_token'] =
+                token; // Add token to user object for model parsing
           }
-          
+
           // ✅ Add agency_info from root level response to userJson
           if (data.containsKey('agency_info') && data['agency_info'] != null) {
             userJson['agency_info'] = data['agency_info'];
@@ -217,19 +261,21 @@ class ApiManager {
             print('   📊 agency_info: ${data['agency_info']}');
             print('🏢 ========== AGENCY INFO END ==========');
           }
-          
+
           return UserSignUpModel.fromJson(userJson);
         } else {
           // ✅ Check if email already exists
           final errorMessage = data['message']?.toString().toLowerCase() ?? '';
           print('⚠️ Signup API Error: ${data['message']}');
-          
+
           // ✅ Throw custom exception for email exists case
-          if (errorMessage.contains('email already exists') || 
+          if (errorMessage.contains('email already exists') ||
               errorMessage.contains('email exists')) {
-            throw EmailAlreadyExistsException(data['message'] ?? 'Email already exists');
+            throw EmailAlreadyExistsException(
+              data['message'] ?? 'Email already exists',
+            );
           }
-          
+
           return null;
         }
       } else {
@@ -246,7 +292,8 @@ class ApiManager {
   }
 
   static Future<UserSignUpModel?> googleLogin({
-    required String   google_id,
+    required String google_id,
+    int? wealthLevel, // ✅ Added wealth level parameter
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.login);
@@ -254,13 +301,16 @@ class ApiManager {
 
       // ✅ Headers to match Postman request
       // ⚠️ NOTE: Do NOT set Content-Type manually for MultipartRequest - it's set automatically with boundary
-      request.headers.addAll({
-        'Accept': 'application/json',
-      });
+      request.headers.addAll({'Accept': 'application/json'});
 
       // ✅ Add google_id field (trimmed to avoid whitespace issues)
       request.fields['google_id'] = google_id.trim();
-      
+
+      // ✅ Add wealth_level optional field if provided
+      if (wealthLevel != null) {
+        request.fields['wealth_level'] = wealthLevel.toString();
+      }
+
       print('📤 ========== GOOGLE LOGIN REQUEST ==========');
       print('   📍 URL: ${uri.toString()}');
       print('   📋 Method: POST');
@@ -273,7 +323,9 @@ class ApiManager {
 
       print('📥 ========== GOOGLE LOGIN RESPONSE ==========');
       print('   📊 Status Code: ${response.statusCode}');
-      print('   📦 Response Body: ${responseBody.isEmpty ? "(empty)" : responseBody}');
+      print(
+        '   📦 Response Body: ${responseBody.isEmpty ? "(empty)" : responseBody}',
+      );
       print('   📋 Response Headers: ${response.headers}');
       print('📥 ========== RESPONSE END ==========');
 
@@ -284,26 +336,41 @@ class ApiManager {
         return null;
       }
 
+      // ✅ Try to detect ban even when response parsing fails or status is non-200
+      if (responseBody.isNotEmpty) {
+        final loweredBody = responseBody.toLowerCase();
+        if (loweredBody.contains('"status"') &&
+            loweredBody.contains('"banned"')) {
+          print('🚫 ========== USER IS BANNED (STRING MATCH) ==========');
+          print('   🚫 Raw response body contains status=banned');
+          print('🚫 ========== BAN CHECK END ==========');
+          throw BannedUserException(
+            message: 'Your account has been banned',
+            banDetails: const {},
+          );
+        }
+      }
+
       // ✅ Try to parse response even for non-200 status codes (sometimes server returns JSON errors)
       if (responseBody.isNotEmpty) {
         try {
           final data = json.decode(responseBody);
-          
+
+          // ⚠️ CHECK IF USER IS BANNED (Backend sends status="banned")
+          if (data is Map && data['status'] == 'banned') {
+            print('🚫 ========== USER IS BANNED ==========');
+            print('   🚫 Message: ${data['message']}');
+            print('   🚫 Ban Details: ${data['ban_details']}');
+            print('🚫 ========== BAN CHECK END ==========');
+
+            // Throw a special exception that will be caught by the provider
+            throw BannedUserException(
+              message: data['message'] ?? 'Your account has been banned',
+              banDetails: Map<String, dynamic>.from(data['ban_details'] ?? {}),
+            );
+          }
+
           if (response.statusCode == 200) {
-            // ⚠️ CHECK IF USER IS BANNED (Backend sends status="banned")
-            if (data['status'] == 'banned') {
-              print('🚫 ========== USER IS BANNED ==========');
-              print('   🚫 Message: ${data['message']}');
-              print('   🚫 Ban Details: ${data['ban_details']}');
-              print('🚫 ========== BAN CHECK END ==========');
-              
-              // Throw a special exception that will be caught by the provider
-              throw BannedUserException(
-                message: data['message'] ?? 'Your account has been banned',
-                banDetails: Map<String, dynamic>.from(data['ban_details'] ?? {}),
-              );
-            }
-            
             if (data['status'] == 'success' && data['user'] != null) {
               print('✅ Google Login Successful');
               // ✅ Extract token from top-level response
@@ -316,36 +383,42 @@ class ApiManager {
                 print('🔑 Token: null or empty');
               }
               print('🔑 ========== TOKEN END ==========');
-              
+
               // ✅ Create user model and add token if available
               final userJson = Map<String, dynamic>.from(data['user']);
               if (token != null && token.isNotEmpty) {
-                userJson['api_token'] = token; // Add token to user object for model parsing
+                userJson['api_token'] =
+                    token; // Add token to user object for model parsing
               }
-              
+
               // ✅ Add agency_info from root level response to userJson
-              if (data.containsKey('agency_info') && data['agency_info'] != null) {
+              if (data.containsKey('agency_info') &&
+                  data['agency_info'] != null) {
                 userJson['agency_info'] = data['agency_info'];
                 print('🏢 ========== AGENCY INFO IN API RESPONSE ==========');
                 print('   📊 agency_info found in response');
                 print('   📊 agency_info: ${data['agency_info']}');
                 print('🏢 ========== AGENCY INFO END ==========');
               }
-              
+
               // ✅ Log merchant status from API response
               print('💼 ========== MERCHANT STATUS IN API RESPONSE ==========');
               print('   📊 Full user JSON: $userJson');
               print('   📊 Raw merchant value: ${userJson['merchant']}');
-              print('   📊 Merchant type: ${userJson['merchant']?.runtimeType}');
-              
+              print(
+                '   📊 Merchant type: ${userJson['merchant']?.runtimeType}',
+              );
+
               final userModel = UserSignUpModel.fromJson(userJson);
               print('   📊 Parsed merchant value: ${userModel.merchant}');
               print('   📊 isMerchant: ${userModel.isMerchant}');
               print('💼 ========== MERCHANT STATUS END ==========');
-              
+
               return userModel;
             } else {
-              print('⚠️ Login API Error: ${data['message'] ?? "Unknown error"}');
+              print(
+                '⚠️ Login API Error: ${data['message'] ?? "Unknown error"}',
+              );
               return null;
             }
           } else {
@@ -354,8 +427,12 @@ class ApiManager {
             print('   ❌ Status Code: ${response.statusCode}');
             print('   ❌ Error Message: ${data['message'] ?? "Unknown error"}');
             print('   ❌ Full Response: $responseBody');
-            print('   ⚠️ This means merchant status cannot be fetched from backend');
-            print('   ⚠️ App will use cached merchant status from SharedPreferences');
+            print(
+              '   ⚠️ This means merchant status cannot be fetched from backend',
+            );
+            print(
+              '   ⚠️ App will use cached merchant status from SharedPreferences',
+            );
             print('❌ ========== GOOGLE LOGIN ERROR END ==========');
             return null;
           }
@@ -365,16 +442,20 @@ class ApiManager {
           print('❌ Raw response: $responseBody');
         }
       }
-      
+
       // ✅ If we get here, response was empty or couldn't be parsed
       print('❌ ========== GOOGLE LOGIN HTTP ERROR ==========');
       print('   ❌ Status Code: ${response.statusCode}');
-      print('   ❌ Response Body: ${responseBody.isEmpty ? "(empty)" : responseBody}');
+      print(
+        '   ❌ Response Body: ${responseBody.isEmpty ? "(empty)" : responseBody}',
+      );
       print('   ❌ Response Headers: ${response.headers}');
       print('   ⚠️ This means merchant status cannot be fetched from backend');
       print('   ⚠️ App will use cached merchant status from SharedPreferences');
       print('❌ ========== GOOGLE LOGIN ERROR END ==========');
       return null;
+    } on BannedUserException {
+      rethrow;
     } catch (e, s) {
       print('❌ Login Exception: $e\n$s');
       return null;
@@ -384,23 +465,30 @@ class ApiManager {
   /// GET user banners from backend. Backend returns: message, total, banners[] with image_path, redirect_url.
   /// [userId] optional – pass empty to load global banners when backend supports it.
   /// [apiToken] optional – if provided (e.g. from SharedPreferences), used as Bearer token; else static bearertoken.
-  static Future<BannerModel?> getUserBanners({String userId = '', String? apiToken}) async {
+  static Future<BannerModel?> getUserBanners({
+    String userId = '',
+    String? apiToken,
+  }) async {
     try {
-      final token = apiToken?.isNotEmpty == true ? apiToken! : ApiConstants.bearertoken;
+      final token = apiToken?.isNotEmpty == true
+          ? apiToken!
+          : ApiConstants.bearertoken;
       var url = Uri.parse('${ApiConstants.baseUrl}get_user_banners.php');
       final queryParams = <String, String>{};
       if (userId.isNotEmpty) queryParams['user_id'] = userId;
       queryParams['api_token'] = token;
       url = url.replace(queryParameters: queryParams);
 
-      var response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-          'User-Agent': 'PostmanRuntime/7.32.3',
-        },
-      ).timeout(const Duration(seconds: 10));
+      var response = await http
+          .get(
+            url,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+              'User-Agent': 'PostmanRuntime/7.32.3',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final responseBody = response.body;
 
@@ -414,13 +502,20 @@ class ApiManager {
           print("❌ [ApiManager] Response is not a JSON object");
           return null;
         }
-        final bannerModel = BannerModel.fromJson(Map<String, dynamic>.from(jsonData));
-        if (bannerModel.banners.isEmpty && (bannerModel.status.isNotEmpty || bannerModel.message.isNotEmpty)) {
-          print("🌐 [ApiManager] Banners: ${bannerModel.banners.length} (backend: ${bannerModel.message})");
+        final bannerModel = BannerModel.fromJson(
+          Map<String, dynamic>.from(jsonData),
+        );
+        if (bannerModel.banners.isEmpty &&
+            (bannerModel.status.isNotEmpty || bannerModel.message.isNotEmpty)) {
+          print(
+            "🌐 [ApiManager] Banners: ${bannerModel.banners.length} (backend: ${bannerModel.message})",
+          );
         }
         return bannerModel;
       } else {
-        print('❌ [ApiManager] get_user_banners error: ${response.statusCode} ${response.reasonPhrase}');
+        print(
+          '❌ [ApiManager] get_user_banners error: ${response.statusCode} ${response.reasonPhrase}',
+        );
         return null;
       }
     } catch (e, stackTrace) {
@@ -458,7 +553,9 @@ class ApiManager {
       });
 
       // ✅ FIXED: Upload room profile image as file (not as string path)
-      if (profile_url != null && profile_url.isNotEmpty && profile_url != 'yyyy') {
+      if (profile_url != null &&
+          profile_url.isNotEmpty &&
+          profile_url != 'yyyy') {
         try {
           // Check if it's a local file path
           if (profile_url.startsWith('/data/') ||
@@ -469,8 +566,9 @@ class ApiManager {
             if (await file.exists()) {
               // Get file extension
               final extension = profile_url.split('.').last;
-              final filename = 'room_profile_${DateTime.now().millisecondsSinceEpoch}.$extension';
-              
+              final filename =
+                  'room_profile_${DateTime.now().millisecondsSinceEpoch}.$extension';
+
               // Add file to multipart request
               final multipartFile = await http.MultipartFile.fromPath(
                 'room_profile', // Field name for file upload
@@ -478,7 +576,7 @@ class ApiManager {
                 filename: filename,
               );
               request.files.add(multipartFile);
-              
+
               print("📸 Image file added to request:");
               print("   - File path: $profile_url");
               print("   - Filename: $filename");
@@ -486,7 +584,8 @@ class ApiManager {
             } else {
               print("⚠️ Room profile file does not exist: $profile_url");
             }
-          } else if (profile_url.startsWith('http://') || profile_url.startsWith('https://')) {
+          } else if (profile_url.startsWith('http://') ||
+              profile_url.startsWith('https://')) {
             // It's already a network URL, don't upload
             print("ℹ️ Room profile is already a network URL: $profile_url");
           } else if (profile_url.startsWith('uploads/')) {
@@ -504,7 +603,9 @@ class ApiManager {
       print("   - topic: $topic");
       print("   - is_private: $isPrivate");
       print("   - password: $password");
-      print("   - room_profile: ${profile_url ?? 'none'} (${request.files.length} file(s))");
+      print(
+        "   - room_profile: ${profile_url ?? 'none'} (${request.files.length} file(s))",
+      );
 
       http.StreamedResponse response = await request.send();
       final responseBody = await response.stream.bytesToString();
@@ -514,7 +615,8 @@ class ApiManager {
       if (response.statusCode == 200) {
         try {
           // ✅ Check if response is HTML or empty
-          if (responseBody.trim().isEmpty || responseBody.trim().startsWith('<!')) {
+          if (responseBody.trim().isEmpty ||
+              responseBody.trim().startsWith('<!')) {
             print("❌ Received HTML response instead of JSON");
             return {
               "status": "error",
@@ -533,23 +635,24 @@ class ApiManager {
             };
           }
 
-        // ✅ DEBUG: Check response structure
-        print("🎯 Response Structure:");
-        print("   - status: ${decoded["status"]}");
-        print("   - message: ${decoded["message"]}");
-        print("   - room: ${decoded["room"]}");
-        if (decoded["room"] != null) {
-          print("   - room_id: ${decoded["room"]["room_id"]}");
-          print("   - room_code: ${decoded["room"]["room_code"]}");
-        }
+          // ✅ DEBUG: Check response structure
+          print("🎯 Response Structure:");
+          print("   - status: ${decoded["status"]}");
+          print("   - message: ${decoded["message"]}");
+          print("   - room: ${decoded["room"]}");
+          if (decoded["room"] != null) {
+            print("   - room_id: ${decoded["room"]["room_id"]}");
+            print("   - room_code: ${decoded["room"]["room_code"]}");
+          }
 
-        return decoded;
+          return decoded;
         } catch (jsonError) {
           print("❌ JSON Decode Error: $jsonError");
           print("❌ Response Body: $responseBody");
           return {
             "status": "error",
-            "message": "Failed to parse server response: ${jsonError.toString()}",
+            "message":
+                "Failed to parse server response: ${jsonError.toString()}",
           };
         }
       } else {
@@ -561,10 +664,7 @@ class ApiManager {
       }
     } catch (e) {
       print("❌ Exception: $e");
-      return {
-        "status": "error",
-        "message": "Network error: ${e.toString()}",
-      };
+      return {"status": "error", "message": "Network error: ${e.toString()}"};
     }
   }
 
@@ -577,19 +677,17 @@ class ApiManager {
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.updateRoomNameApi);
-      final response = await http.post(
-        uri,
-        headers: {
-          'Authorization': 'Bearer ${ApiConstants.bearertoken}',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
-        },
-        body: {
-          'user_id': userId,
-          'room_id': roomId,
-          'room_name': roomName,
-        },
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Authorization': 'Bearer ${ApiConstants.bearertoken}',
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json',
+            },
+            body: {'user_id': userId, 'room_id': roomId, 'room_name': roomName},
+          )
+          .timeout(const Duration(seconds: 15));
       final body = response.body;
       if (response.statusCode != 200) {
         return {'status': 'error', 'message': 'HTTP ${response.statusCode}'};
@@ -627,12 +725,23 @@ class ApiManager {
       });
       request.fields['user_id'] = userId;
       request.fields['room_id'] = roomId;
-      if (roomName != null && roomName.isNotEmpty) request.fields['room_name'] = roomName;
+      if (roomName != null && roomName.isNotEmpty)
+        request.fields['room_name'] = roomName;
       final ext = imagePath.split('.').last;
       final name = 'room_profile_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      request.files.add(await http.MultipartFile.fromPath('room_profile', imagePath, filename: name));
-      final streamed = await request.send().timeout(const Duration(seconds: 20));
-      final responseBody = await http.Response.fromStream(streamed).then((r) => r.body);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'room_profile',
+          imagePath,
+          filename: name,
+        ),
+      );
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
+      final responseBody = await http.Response.fromStream(
+        streamed,
+      ).then((r) => r.body);
       if (streamed.statusCode != 200) {
         return {'status': 'error', 'message': 'HTTP ${streamed.statusCode}'};
       }
@@ -670,12 +779,12 @@ class ApiManager {
       // ✅ Extract filename from path for profile_url field (as string, like google_auth.php)
       String profileUrlString = '';
       String? imageFileName;
-      
+
       if (profile_url.isNotEmpty) {
         try {
           File imageFile = File(profile_url);
           final fileExists = await imageFile.exists();
-          
+
           if (fileExists) {
             // Get just the filename (e.g., "1000086588.jpg" from full path)
             imageFileName = imageFile.path.split('/').last;
@@ -698,11 +807,13 @@ class ApiManager {
       request.fields.addAll({
         'id': id,
         'username': username,
-        'name': name ?? username, // ✅ Send name field (use username as fallback)
+        'name':
+            name ?? username, // ✅ Send name field (use username as fallback)
         'country': country,
         'gender': gender,
         'dob': dob,
-        'profile_url': profileUrlString, // ✅ Send as STRING (filename or URL), not file path
+        'profile_url':
+            profileUrlString, // ✅ Send as STRING (filename or URL), not file path
       });
 
       print('📤 ========== SENDING TO BACKEND ==========');
@@ -722,11 +833,11 @@ class ApiManager {
           File imageFile = File(profile_url);
           final fileExists = await imageFile.exists();
           print('   - File exists check: $fileExists');
-          
+
           if (fileExists) {
             final fileSize = await imageFile.length();
             print('   - File size: ${fileSize / 1024} KB ($fileSize bytes)');
-            
+
             // Check file permissions
             try {
               final stat = await imageFile.stat();
@@ -735,37 +846,41 @@ class ApiManager {
             } catch (e) {
               print('   ❌ ERROR: Cannot read file stats: $e');
             }
-            
+
             // ✅ ACTUAL IMAGE FILE UPLOAD - Send as file in request
             print('   - Creating MultipartFile...');
-            
+
             try {
               // Send file with field name 'profile_image' (or try other common names)
               final multipartFile = await http.MultipartFile.fromPath(
                 'profile_image', // ✅ Backend expects this field for file upload
                 profile_url,
               );
-              
+
               print('   - MultipartFile created successfully');
               print('   - Field name: ${multipartFile.field}');
               print('   - Filename: ${multipartFile.filename}');
               print('   - Content length: ${multipartFile.length} bytes');
               print('   - Content type: ${multipartFile.contentType}');
-              
+
               request.files.add(multipartFile);
               print('   ✅ Image file added to request');
               print('   - Total files in request: ${request.files.length}');
-              
+
               // Log all files in request for debugging
               for (var file in request.files) {
-                print('   - File in request: field="${file.field}", filename="${file.filename}", length=${file.length}');
+                print(
+                  '   - File in request: field="${file.field}", filename="${file.filename}", length=${file.length}',
+                );
               }
             } catch (multipartError) {
               print('   ❌ ERROR creating MultipartFile: $multipartError');
               print('   - Error type: ${multipartError.runtimeType}');
             }
           } else {
-            print('   ❌ ERROR: Image file does not exist at path: $profile_url');
+            print(
+              '   ❌ ERROR: Image file does not exist at path: $profile_url',
+            );
             print('   ⚠️ Request will be sent without image file');
           }
         } catch (e, stackTrace) {
@@ -775,7 +890,9 @@ class ApiManager {
         }
         print('📸 ========== IMAGE UPLOAD PROCESS END ==========');
       } else {
-        print('ℹ️ No image file to upload - only sending profile_url as string');
+        print(
+          'ℹ️ No image file to upload - only sending profile_url as string',
+        );
       }
 
       print('📡 Sending HTTP request...');
@@ -787,7 +904,9 @@ class ApiManager {
       print('   - All fields: ${request.fields}');
       print('   - All files:');
       for (var file in request.files) {
-        print('      * ${file.field}: ${file.filename} (${file.length} bytes, ${file.contentType})');
+        print(
+          '      * ${file.field}: ${file.filename} (${file.length} bytes, ${file.contentType})',
+        );
       }
 
       http.StreamedResponse response = await request.send();
@@ -802,16 +921,16 @@ class ApiManager {
       if (response.statusCode == 200) {
         print('✅ HTTP 200 - Success');
         try {
-        final jsonResponse = json.decode(responseBody);
+          final jsonResponse = json.decode(responseBody);
           print('   - JSON decoded successfully');
           print('   - Response keys: ${jsonResponse.keys}');
           print("this is a profile update json response $jsonResponse");
-          
+
           final model = UpdateProfileModel.fromJson(jsonResponse);
           print('   - Model created successfully');
           print('   - Model status: ${model.status}');
           print('   - Model profileUrl: ${model.profileUrl}');
-          
+
           return model;
         } catch (jsonError) {
           print('   ❌ ERROR parsing JSON: $jsonError');
@@ -859,7 +978,10 @@ class ApiManager {
         'Content-Type': 'application/x-www-form-urlencoded',
       };
 
-      var request = http.Request('POST', Uri.parse('${ApiConstants.baseUrl}join_room.php'));
+      var request = http.Request(
+        'POST',
+        Uri.parse('${ApiConstants.baseUrl}join_room.php'),
+      );
 
       // ✅ CORRECT FIELDS - room_id use karo, room_code nahi
       request.bodyFields = {
@@ -901,12 +1023,22 @@ class ApiManager {
 
   /// Get Zego voice token for token auth (fixes 1001005 when Zego Console uses token authentication).
   /// Backend get_zego_token.php should accept room_id and user_id, return { "token": "04..." } or { "code": 0, "data": { "token": "..." } }.
-  static Future<String?> getZegoToken({required String roomId, required String userId}) async {
+  static Future<String?> getZegoToken({
+    required String roomId,
+    required String userId,
+  }) async {
     if (userId.isEmpty) return null;
     try {
       final uri = Uri.parse(ApiConstants.getZegoTokenApi);
-      final response = await _postWithFallback(uri, headers: {'Accept': 'application/json'}, body: {'room_id': roomId, 'user_id': userId}).timeout(const Duration(seconds: 6));
-      if (response == null || response.statusCode != 200 || response.body.trim().isEmpty) return null;
+      final response = await _postWithFallback(
+        uri,
+        headers: {'Accept': 'application/json'},
+        body: {'room_id': roomId, 'user_id': userId},
+      ).timeout(const Duration(seconds: 6));
+      if (response == null ||
+          response.statusCode != 200 ||
+          response.body.trim().isEmpty)
+        return null;
       final decoded = json.decode(response.body);
       if (decoded is! Map) return null;
       final token = decoded['token']?.toString();
@@ -1030,8 +1162,10 @@ class ApiManager {
         final objStart = cleanResponse.indexOf('{');
         final arrStart = cleanResponse.indexOf('[');
         int jsonStart = -1;
-        if (objStart != -1 && (arrStart == -1 || objStart < arrStart)) jsonStart = objStart;
-        if (arrStart != -1 && (objStart == -1 || arrStart < objStart)) jsonStart = arrStart;
+        if (objStart != -1 && (arrStart == -1 || objStart < arrStart))
+          jsonStart = objStart;
+        if (arrStart != -1 && (objStart == -1 || arrStart < objStart))
+          jsonStart = arrStart;
         if (jsonStart != -1) cleanResponse = cleanResponse.substring(jsonStart);
       }
       final s = cleanResponse;
@@ -1041,10 +1175,14 @@ class ApiManager {
         int depth = 0;
         int endIndex = -1;
         for (int i = 0; i < s.length; i++) {
-          if (s[i] == '[') depth++;
+          if (s[i] == '[')
+            depth++;
           else if (s[i] == ']') {
             depth--;
-            if (depth == 0) { endIndex = i; break; }
+            if (depth == 0) {
+              endIndex = i;
+              break;
+            }
           }
         }
         if (endIndex != -1) return jsonDecode(s.substring(0, endIndex + 1));
@@ -1054,13 +1192,20 @@ class ApiManager {
         int startIndex = 0;
         int endIndex = -1;
         for (int i = 0; i < s.length; i++) {
-          if (s[i] == '{') { if (startIndex == -1) startIndex = i; braceCount++; }
-          else if (s[i] == '}') {
+          if (s[i] == '{') {
+            if (startIndex == -1) startIndex = i;
+            braceCount++;
+          } else if (s[i] == '}') {
             braceCount--;
-            if (braceCount == 0 && startIndex != -1) { endIndex = i; break; }
+            if (braceCount == 0 && startIndex != -1) {
+              endIndex = i;
+              break;
+            }
           }
         }
-        if (endIndex != -1) return jsonDecode(s.substring(startIndex, endIndex + 1)) as Map<String, dynamic>;
+        if (endIndex != -1)
+          return jsonDecode(s.substring(startIndex, endIndex + 1))
+              as Map<String, dynamic>;
       }
       return null;
     } catch (e) {
@@ -1069,7 +1214,9 @@ class ApiManager {
     }
   }
 
-  static Future<Map<String, dynamic>> checkUserRoom({required String userId}) async {
+  static Future<Map<String, dynamic>> checkUserRoom({
+    required String userId,
+  }) async {
     try {
       var headers = {
         'Authorization': 'Bearer mySuperSecretStaticToken123',
@@ -1099,14 +1246,14 @@ class ApiManager {
         try {
           // ✅ Extract JSON from mixed response (may contain HTML comments)
           Map<String, dynamic> jsonResponse;
-          
+
           // Check if response contains HTML comments
           if (responseBody.trim().startsWith('{')) {
             // Response starts with JSON, extract it
             int braceCount = 0;
             int startIndex = responseBody.indexOf('{');
             int endIndex = -1;
-            
+
             for (int i = startIndex; i < responseBody.length; i++) {
               if (responseBody[i] == '{') {
                 braceCount++;
@@ -1118,9 +1265,12 @@ class ApiManager {
                 }
               }
             }
-            
+
             if (endIndex != -1) {
-              String cleanJson = responseBody.substring(startIndex, endIndex + 1);
+              String cleanJson = responseBody.substring(
+                startIndex,
+                endIndex + 1,
+              );
               jsonResponse = json.decode(cleanJson) as Map<String, dynamic>;
             } else {
               // Fallback: try to decode entire response
@@ -1130,14 +1280,15 @@ class ApiManager {
             // Use existing extraction method
             jsonResponse = _extractJsonFromMixedResponse(responseBody);
           }
-          
+
           return jsonResponse;
         } catch (jsonError) {
           print('🔴 JSON Parse Error: $jsonError');
           print('🔴 Response Body: $responseBody');
           return {
             "status": "error",
-            "message": "Failed to parse server response: ${jsonError.toString()}",
+            "message":
+                "Failed to parse server response: ${jsonError.toString()}",
           };
         }
       } else {
@@ -1148,14 +1299,9 @@ class ApiManager {
       }
     } catch (e) {
       print("❌ Check User Room Exception: $e");
-      return {
-        "status": "error",
-        "message": "Network error: ${e.toString()}",
-      };
+      return {"status": "error", "message": "Network error: ${e.toString()}"};
     }
   }
-
-
 
   // // SEND MESSAGE API - Exact Postman format
   static Future<SendMessageRoomModel> sendMessage({
@@ -1183,7 +1329,6 @@ class ApiManager {
         "user_id": userId,
         "room_id": roomId,
         "message": message,
-        
       });
 
       request.headers.addAll(headers);
@@ -1241,7 +1386,7 @@ class ApiManager {
             userId: userId,
             roomId: roomId,
             message: message,
-            userName:   'You',
+            userName: 'You',
           );
         }
       } else {
@@ -1294,8 +1439,10 @@ class ApiManager {
 
       if (response.statusCode == 200) {
         try {
-          Map<String, dynamic> jsonResponse = _extractJsonFromMixedResponse(responseBody);
-        return BaseResponseModel.fromJson(jsonResponse);
+          Map<String, dynamic> jsonResponse = _extractJsonFromMixedResponse(
+            responseBody,
+          );
+          return BaseResponseModel.fromJson(jsonResponse);
         } catch (jsonError) {
           print('🔴 JSON Parse Error: $jsonError');
           return BaseResponseModel(
@@ -1327,16 +1474,16 @@ class ApiManager {
   //     if (responseBody.trim().startsWith('{')) {
   //       return json.decode(responseBody) as Map<String, dynamic>;
   //     }
-      
+
   //     // Find JSON in mixed content
   //     final jsonStart = responseBody.indexOf('{');
   //     final jsonEnd = responseBody.lastIndexOf('}');
-      
+
   //     if (jsonStart != -1 && jsonEnd != -1) {
   //       String cleanJson = responseBody.substring(jsonStart, jsonEnd + 1);
   //       return json.decode(cleanJson) as Map<String, dynamic>;
   //     }
-      
+
   //     throw Exception('No JSON found in response');
   //   } catch (e) {
   //     throw Exception('JSON extraction failed: $e');
@@ -1344,7 +1491,10 @@ class ApiManager {
   // }
 
   // ✅ 1. CREATE/GET CHATROOM
-  static Future<BaseResponseModel> createChatroom(int user1Id, int user2Id) async {
+  static Future<BaseResponseModel> createChatroom(
+    int user1Id,
+    int user2Id,
+  ) async {
     return await _makeApiCall({
       'action': 'create_chatroom',
       'user1_id': user1Id.toString(),
@@ -1369,7 +1519,10 @@ class ApiManager {
   }
 
   // ✅ 3. GET MESSAGES - User-to-User_Chat_API.php action=get_messages
-  static Future<List<ChatMessage>> getUserMessages(int chatroomId, {int? userId}) async {
+  static Future<List<ChatMessage>> getUserMessages(
+    int chatroomId, {
+    int? userId,
+  }) async {
     final fields = <String, String>{
       'action': 'get_messages',
       'chatroom_id': chatroomId.toString(),
@@ -1386,14 +1539,18 @@ class ApiManager {
       List<dynamic>? rawList;
       if (response.data is List) {
         rawList = response.data as List;
-      } else if (response.data is Map && (response.data as Map).containsKey('messages')) {
+      } else if (response.data is Map &&
+          (response.data as Map).containsKey('messages')) {
         final m = (response.data as Map)['messages'];
         if (m is List) rawList = m;
       }
       if (rawList != null && rawList.isNotEmpty) {
         return rawList
             .where((item) => item is Map)
-            .map((item) => ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)))
+            .map(
+              (item) =>
+                  ChatMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+            )
             .toList();
       }
     }
@@ -1421,91 +1578,93 @@ class ApiManager {
   // }
 
   static Future<List<ChatRoom>> getUserChatRooms(int userId) async {
-  try {
-    print('🔵 API Call: get_chatrooms');
-    
-    // ✅ Use the same endpoint as other chat operations
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('${ApiConstants.baseUrl}User-to-User_Chat_API.php'),
-    );
+    try {
+      print('🔵 API Call: get_chatrooms');
 
-    request.fields.addAll({
-      'action': 'get_chatrooms',
-      'user1_id': userId.toString(),
-    });
+      // ✅ Use the same endpoint as other chat operations
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConstants.baseUrl}User-to-User_Chat_API.php'),
+      );
 
-    print('📤 Fields: ${request.fields}');
-    request.headers.addAll(userChatHeaders);
+      request.fields.addAll({
+        'action': 'get_chatrooms',
+        'user1_id': userId.toString(),
+      });
 
-    http.StreamedResponse response = await request.send();
-    print('📥 Response Status: ${response.statusCode}');
-    
-    String responseBody = await response.stream.bytesToString();
-    print('📥 Response Body: $responseBody');
+      print('📤 Fields: ${request.fields}');
+      request.headers.addAll(userChatHeaders);
 
-    if (response.statusCode == 200) {
-      // ✅ HTML COMMENTS REMOVE KARO
-      responseBody = responseBody.replaceAll(RegExp(r'<!--[\s\S]*?-->'), '').trim();
-      
-      try {
-        Map<String, dynamic> jsonResponse = json.decode(responseBody);
+      http.StreamedResponse response = await request.send();
+      print('📥 Response Status: ${response.statusCode}');
 
-        if (jsonResponse['status'] == 'success') {
-          // ✅ NESTED DATA HANDLE KARO
-          dynamic dataValue = jsonResponse['data'];
-          List<dynamic> chatroomsJson = [];
-          
-          if (dataValue != null) {
-            if (dataValue is Map<String, dynamic>) {
-              // Data is a map, try to get chatrooms array
-              if (dataValue['chatrooms'] != null) {
-                chatroomsJson = dataValue['chatrooms'] as List<dynamic>;
+      String responseBody = await response.stream.bytesToString();
+      print('📥 Response Body: $responseBody');
+
+      if (response.statusCode == 200) {
+        // ✅ HTML COMMENTS REMOVE KARO
+        responseBody = responseBody
+            .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '')
+            .trim();
+
+        try {
+          Map<String, dynamic> jsonResponse = json.decode(responseBody);
+
+          if (jsonResponse['status'] == 'success') {
+            // ✅ NESTED DATA HANDLE KARO
+            dynamic dataValue = jsonResponse['data'];
+            List<dynamic> chatroomsJson = [];
+
+            if (dataValue != null) {
+              if (dataValue is Map<String, dynamic>) {
+                // Data is a map, try to get chatrooms array
+                if (dataValue['chatrooms'] != null) {
+                  chatroomsJson = dataValue['chatrooms'] as List<dynamic>;
+                }
+              } else if (dataValue is List) {
+                // Data is directly a list
+                chatroomsJson = dataValue;
               }
-            } else if (dataValue is List) {
-              // Data is directly a list
-              chatroomsJson = dataValue;
             }
-          }
-          
-          // ✅ Also check top-level chatrooms
-          if (chatroomsJson.isEmpty && jsonResponse['chatrooms'] != null) {
-            chatroomsJson = jsonResponse['chatrooms'] as List<dynamic>;
-          }
-          
-          List<ChatRoom> chatRooms = chatroomsJson.map((json) {
-            return ChatRoom.fromJson(json);
-          }).toList();
 
-          print('✅ Parsed ${chatRooms.length} chat rooms');
-          return chatRooms;
-        } else {
-          print('❌ API Error: ${jsonResponse['message'] ?? 'Unknown error'}');
-    return [];
+            // ✅ Also check top-level chatrooms
+            if (chatroomsJson.isEmpty && jsonResponse['chatrooms'] != null) {
+              chatroomsJson = jsonResponse['chatrooms'] as List<dynamic>;
+            }
+
+            List<ChatRoom> chatRooms = chatroomsJson.map((json) {
+              return ChatRoom.fromJson(json);
+            }).toList();
+
+            print('✅ Parsed ${chatRooms.length} chat rooms');
+            return chatRooms;
+          } else {
+            print('❌ API Error: ${jsonResponse['message'] ?? 'Unknown error'}');
+            return [];
+          }
+        } catch (e) {
+          print('❌ JSON Parse Error: $e');
+          print('   - Response body: $responseBody');
+          return [];
         }
-      } catch (e) {
-        print('❌ JSON Parse Error: $e');
+      } else if (response.statusCode == 404) {
+        print('❌ HTTP 404 - Endpoint or action not found');
+        print('   - URL: ${request.url}');
+        print('   - Action: get_chatrooms');
+        print('   - This might mean the backend doesn\'t support this action');
+        print('   - Response body: $responseBody');
+        // ✅ Return empty list instead of failing completely
+        return [];
+      } else {
+        print('❌ HTTP Error: ${response.statusCode}');
         print('   - Response body: $responseBody');
         return [];
       }
-    } else if (response.statusCode == 404) {
-      print('❌ HTTP 404 - Endpoint or action not found');
-      print('   - URL: ${request.url}');
-      print('   - Action: get_chatrooms');
-      print('   - This might mean the backend doesn\'t support this action');
-      print('   - Response body: $responseBody');
-      // ✅ Return empty list instead of failing completely
-      return [];
-    } else {
-      print('❌ HTTP Error: ${response.statusCode}');
-      print('   - Response body: $responseBody');
+    } catch (e) {
+      print('❌ Exception: $e');
       return [];
     }
-  } catch (e) {
-    print('❌ Exception: $e');
-    return [];
   }
-}
 
   /// Request a server-minted one-time game code.
   /// Returns the code string on success, or null on failure.
@@ -1515,27 +1674,39 @@ class ApiManager {
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.requestGameCode);
-      final headers = {
-        'Accept': 'application/json',
-      };
+      final headers = {'Accept': 'application/json'};
 
-      print('[ApiManager] requestGameCode -> POST ${uri.toString()} user_id=$userId room_id=$roomId');
+      print(
+        '[ApiManager] requestGameCode -> POST ${uri.toString()} user_id=$userId room_id=$roomId',
+      );
       http.Response? response;
       try {
         final sigFields = _generateSignatureFields(includeChannel: false);
-        final body = <String, String>{...sigFields, 'user_id': userId, 'room_id': roomId};
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        final body = <String, String>{
+          ...sigFields,
+          'user_id': userId,
+          'room_id': roomId,
+        };
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] requestGameCode timeout or error: $e');
         return null;
       }
 
       if (response == null) {
-        print('[ApiManager] requestGameCode no response from primary or fallback');
+        print(
+          '[ApiManager] requestGameCode no response from primary or fallback',
+        );
         return null;
       }
 
-      print('[ApiManager] requestGameCode response status: ${response.statusCode}');
+      print(
+        '[ApiManager] requestGameCode response status: ${response.statusCode}',
+      );
       print('[ApiManager] requestGameCode response body: ${response.body}');
 
       if (response.statusCode != 200) {
@@ -1558,7 +1729,9 @@ class ApiManager {
         if (data is Map && data['code'] is String) {
           return data['code'] as String;
         }
-        if (decoded['status'] == 'success' && data is Map && data['code'] is String) {
+        if (decoded['status'] == 'success' &&
+            data is Map &&
+            data['code'] is String) {
           return data['code'] as String;
         }
       }
@@ -1572,48 +1745,79 @@ class ApiManager {
 
   /// Fetch game list from backend (BAISHUN `gamelist`)
   /// Returns a list of game objects (maps) or empty list on error.
-  static Future<List<Map<String, dynamic>>> getGameList({int gameListType = 3}) async {
+  static Future<List<Map<String, dynamic>>> getGameList({
+    int gameListType = 3,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.gameListApi);
-      print('[ApiManager] getGameList -> POST ${uri.toString()} game_list_type=$gameListType');
+      print(
+        '[ApiManager] getGameList -> POST ${uri.toString()} game_list_type=$gameListType',
+      );
       http.Response? response;
       Map<String, String> sigFields = {};
       try {
         sigFields = _generateSignatureFields(includeChannel: true);
-        final body = <String, String>{...sigFields, 'game_list_type': gameListType.toString()};
+        final body = <String, String>{
+          ...sigFields,
+          'game_list_type': gameListType.toString(),
+        };
 
         // VERBOSE DEBUG: print signature components so we can verify exactly
         try {
           final nonce = sigFields['signature_nonce'];
           final ts = sigFields['timestamp'];
           final sig = sigFields['signature'];
-          final concat = '${nonce ?? ''}${ApiConstants.baishunAppKey}${ts ?? ''}';
-          print('[ApiManager] Signature debug -> nonce:$nonce timestamp:$ts signature:$sig');
-          print('[ApiManager] Signature debug -> concat (nonce+AppKey+ts): $concat');
+          final concat =
+              '${nonce ?? ''}${ApiConstants.baishunAppKey}${ts ?? ''}';
+          print(
+            '[ApiManager] Signature debug -> nonce:$nonce timestamp:$ts signature:$sig',
+          );
+          print(
+            '[ApiManager] Signature debug -> concat (nonce+AppKey+ts): $concat',
+          );
           print('[ApiManager] getGameList body fields: $body');
         } catch (e) {
           print('[ApiManager] Failed to print signature debug info: $e');
         }
 
         // BAISHUN expects JSON POSTs with Content-Type: application/json
-        final headers = {'Content-Type': 'application/json', 'Accept': 'application/json'};
+        final headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        };
         try {
           // Build JSON payload with correct types (timestamp and app_id as numbers)
           final payload = <String, dynamic>{
             'signature_nonce': sigFields['signature_nonce'],
-            'timestamp': int.tryParse(sigFields['timestamp'] ?? '') ?? DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
+            'timestamp':
+                int.tryParse(sigFields['timestamp'] ?? '') ??
+                DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
             'signature': sigFields['signature'],
-            'app_id': int.tryParse(ApiConstants.baishunAppId) ?? ApiConstants.baishunAppId,
-            'app_channel': sigFields['app_channel'] ?? ApiConstants.baishunAppChannel,
+            'app_id':
+                int.tryParse(ApiConstants.baishunAppId) ??
+                ApiConstants.baishunAppId,
+            'app_channel':
+                sigFields['app_channel'] ?? ApiConstants.baishunAppChannel,
             'game_list_type': gameListType,
           };
           final jsonBody = json.encode(payload);
           print('[ApiManager] JSON POST payload: $payload');
-          response = await http.post(uri, headers: headers, body: jsonBody).timeout(const Duration(seconds: 8));
+          response = await http
+              .post(uri, headers: headers, body: jsonBody)
+              .timeout(const Duration(seconds: 8));
         } catch (e) {
           // Fallback to previous behavior if direct POST fails
-          print('[ApiManager] Direct JSON POST failed: $e — falling back to _postWithFallback');
-          response = await _postWithFallback(uri, headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}, body: body).timeout(const Duration(seconds: 8));
+          print(
+            '[ApiManager] Direct JSON POST failed: $e — falling back to _postWithFallback',
+          );
+          response = await _postWithFallback(
+            uri,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json',
+            },
+            body: body,
+          ).timeout(const Duration(seconds: 8));
         }
       } catch (e) {
         print('[ApiManager] getGameList timeout or error: $e');
@@ -1631,7 +1835,9 @@ class ApiManager {
 
       // DEBUG: log raw response body for easier troubleshooting
       try {
-        final preview = response.body.length > 400 ? '${response.body.substring(0, 400)}... (truncated)' : response.body;
+        final preview = response.body.length > 400
+            ? '${response.body.substring(0, 400)}... (truncated)'
+            : response.body;
         print('[ApiManager] getGameList body: $preview');
       } catch (e) {
         print('[ApiManager] getGameList failed to print body: $e');
@@ -1651,13 +1857,24 @@ class ApiManager {
               }).toList();
             }
           } else {
-            print('[ApiManager] getGameList server returned non-zero code: $code');
+            print(
+              '[ApiManager] getGameList server returned non-zero code: $code',
+            );
             // If signature failed (1003), attempt alternative signature orders to debug
             try {
               if (code == 1003) {
-                print('[ApiManager] Attempting alternative signature orders for debugging');
-                final altResults = await _tryAlternateSignatures(uri, ApiConstants.baishunAppId, gameListType, sigFields: sigFields);
-                print('[ApiManager] Alternative signature attempts: $altResults');
+                print(
+                  '[ApiManager] Attempting alternative signature orders for debugging',
+                );
+                final altResults = await _tryAlternateSignatures(
+                  uri,
+                  ApiConstants.baishunAppId,
+                  gameListType,
+                  sigFields: sigFields,
+                );
+                print(
+                  '[ApiManager] Alternative signature attempts: $altResults',
+                );
               }
             } catch (e) {
               print('[ApiManager] Alternative signature probe failed: $e');
@@ -1675,7 +1892,11 @@ class ApiManager {
           }).toList();
         }
       } else if (decoded is List) {
-        return decoded.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+        return decoded
+            .map<Map<String, dynamic>>(
+              (e) => Map<String, dynamic>.from(e as Map),
+            )
+            .toList();
       }
 
       return [];
@@ -1695,39 +1916,52 @@ class ApiManager {
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.oneGameInfoApi);
-      final headers = {'Content-Type': 'application/json', 'Accept': 'application/json'};
+      final headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
-      print('[ApiManager] getOneGameInfo -> POST ${uri.toString()} app_channel=$appChannel app_id=$appId game_id=$gameId');
+      print(
+        '[ApiManager] getOneGameInfo -> POST ${uri.toString()} app_channel=$appChannel app_id=$appId game_id=$gameId',
+      );
 
       http.Response? response;
       try {
         final sigFields = _generateSignatureFields(includeChannel: true);
-        
+
         // Build JSON payload with correct types (app_id and game_id as int, timestamp as int)
         final payload = <String, dynamic>{
           'app_channel': appChannel,
           'app_id': int.tryParse(appId) ?? appId,
           'game_id': gameId,
           'signature_nonce': sigFields['signature_nonce'],
-          'timestamp': int.tryParse(sigFields['timestamp'] ?? '') ?? DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
+          'timestamp':
+              int.tryParse(sigFields['timestamp'] ?? '') ??
+              DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000,
           'signature': sigFields['signature'],
         };
-        
+
         final jsonBody = json.encode(payload);
         print('[ApiManager] getOneGameInfo JSON payload: $payload');
-        
-        response = await http.post(uri, headers: headers, body: jsonBody).timeout(const Duration(seconds: 8));
+
+        response = await http
+            .post(uri, headers: headers, body: jsonBody)
+            .timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getOneGameInfo timeout or error: $e');
         return null;
       }
 
       if (response == null) {
-        print('[ApiManager] getOneGameInfo no response from primary or fallback');
+        print(
+          '[ApiManager] getOneGameInfo no response from primary or fallback',
+        );
         return null;
       }
 
-      print('[ApiManager] getOneGameInfo response status: ${response.statusCode}');
+      print(
+        '[ApiManager] getOneGameInfo response status: ${response.statusCode}',
+      );
       if (response.statusCode != 200) return null;
       if (response.body.trim().isEmpty) return null;
 
@@ -1758,12 +1992,17 @@ class ApiManager {
       final uri = Uri.parse(ApiConstants.getSstokenApi);
       final rnd = Random.secure();
       final nonceBytes = List<int>.generate(12, (_) => rnd.nextInt(256));
-      final signatureNonce = nonceBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-      final timestamp = (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000).toString();
+      final signatureNonce = nonceBytes
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      final timestamp = (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000)
+          .toString();
       final data = signatureNonce + ApiConstants.baishunAppKey + timestamp;
       final signature = md5.convert(utf8.encode(data)).toString().toLowerCase();
       final body = json.encode({
-        'app_id': int.tryParse(ApiConstants.baishunAppId) ?? ApiConstants.baishunAppId,
+        'app_id':
+            int.tryParse(ApiConstants.baishunAppId) ??
+            ApiConstants.baishunAppId,
         'user_id': userId,
         'code': code,
         'signature_nonce': signatureNonce,
@@ -1771,20 +2010,29 @@ class ApiManager {
         'signature': signature,
       });
       print('[ApiManager] requestSstokenWithCode -> POST $uri (BAISHUN JSON)');
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-        body: body,
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: body,
+          )
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode != 200) {
-        print('[ApiManager] requestSstokenWithCode HTTP ${response.statusCode}');
+        print(
+          '[ApiManager] requestSstokenWithCode HTTP ${response.statusCode}',
+        );
         return null;
       }
       final decoded = json.decode(response.body);
       if (decoded is! Map) return null;
       final codeResp = decoded['code'] ?? decoded['ret_code'];
       if (codeResp != 0) {
-        print('[ApiManager] requestSstokenWithCode server error: ${decoded['message'] ?? decoded['msg']}');
+        print(
+          '[ApiManager] requestSstokenWithCode server error: ${decoded['message'] ?? decoded['msg']}',
+        );
         return null;
       }
       final dataMap = decoded['data'];
@@ -1803,18 +2051,31 @@ class ApiManager {
   }
 
   /// Obtain ss_token from server using a client code (POST /games.php/get_sstoken)
-  static Future<Map<String, dynamic>?> getSstoken({required String code, String? userId, bool retryIfMissing = true}) async {
+  static Future<Map<String, dynamic>?> getSstoken({
+    required String code,
+    String? userId,
+    bool retryIfMissing = true,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.getSstokenApi);
-      final headers = {'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded'};
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
 
       http.Response? response;
       try {
-        final body = <String, String>{'user_id': userId ?? '' , 'code': code};
+        final body = <String, String>{'user_id': userId ?? '', 'code': code};
         print('[ApiManager] getSstoken -> POST $uri (form) body: $body');
-        response = await http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
-        print('[ApiManager] getSstoken response status: ${response.statusCode}');
-        print('[ApiManager] getSstoken response body preview: ${response.body.length>400?"${response.body.substring(0,400)}...":response.body}');
+        response = await http
+            .post(uri, headers: headers, body: body)
+            .timeout(const Duration(seconds: 8));
+        print(
+          '[ApiManager] getSstoken response status: ${response.statusCode}',
+        );
+        print(
+          '[ApiManager] getSstoken response body preview: ${response.body.length > 400 ? "${response.body.substring(0, 400)}..." : response.body}',
+        );
       } catch (e) {
         print('[ApiManager] getSstoken POST failed: $e');
         return null;
@@ -1823,7 +2084,9 @@ class ApiManager {
       if (body.isEmpty) return null;
 
       if (response.statusCode != 200) {
-        print('[ApiManager] getSstoken HTTP status: ${response.statusCode} (will attempt to parse body for error details)');
+        print(
+          '[ApiManager] getSstoken HTTP status: ${response.statusCode} (will attempt to parse body for error details)',
+        );
       }
 
       // Extract JSON from response (server may send leading blank lines or gzip artifacts)
@@ -1835,28 +2098,47 @@ class ApiManager {
         if (codeResp == 0) {
           final data = decoded['data'];
           if (data is Map) {
-            if (data.containsKey('ss_token')) return Map<String, dynamic>.from(data);
-            if (data.containsKey('sstoken')) return {'ss_token': data['sstoken'], ...Map<String, dynamic>.from(data)};
+            if (data.containsKey('ss_token'))
+              return Map<String, dynamic>.from(data);
+            if (data.containsKey('sstoken'))
+              return {
+                'ss_token': data['sstoken'],
+                ...Map<String, dynamic>.from(data),
+              };
             return Map<String, dynamic>.from(data);
           }
         } else {
-          final errMsg = decoded['message'] ?? decoded['msg'] ?? decoded['ret_msg'];
+          final errMsg =
+              decoded['message'] ?? decoded['msg'] ?? decoded['ret_msg'];
           print('[ApiManager] getSstoken server error: $errMsg');
 
           // If token missing, ask backend to generate via its route, then retry once
-          final missing = (codeResp == 404) || (errMsg != null && errMsg.toString().toLowerCase().contains('token not found'));
+          final missing =
+              (codeResp == 404) ||
+              (errMsg != null &&
+                  errMsg.toString().toLowerCase().contains('token not found'));
           if (missing && retryIfMissing) {
             try {
               final genUri = Uri.parse(ApiConstants.generateSstokenApi);
               final genBody = <String, String>{'user_id': userId ?? ''};
-              print('[ApiManager] Calling backend generate_sstoken -> POST $genUri body: $genBody');
-              final genResp = await http.post(genUri, headers: headers, body: genBody).timeout(const Duration(seconds: 8));
-              print('[ApiManager] generate_sstoken status: ${genResp.statusCode} body: ${genResp.body}');
+              print(
+                '[ApiManager] Calling backend generate_sstoken -> POST $genUri body: $genBody',
+              );
+              final genResp = await http
+                  .post(genUri, headers: headers, body: genBody)
+                  .timeout(const Duration(seconds: 8));
+              print(
+                '[ApiManager] generate_sstoken status: ${genResp.statusCode} body: ${genResp.body}',
+              );
               if (genResp.statusCode == 200) {
                 final gdec = json.decode(genResp.body);
                 final gcode = gdec['code'] ?? gdec['ret_code'];
                 if (gcode == 0) {
-                  return await getSstoken(code: code, userId: userId, retryIfMissing: false);
+                  return await getSstoken(
+                    code: code,
+                    userId: userId,
+                    retryIfMissing: false,
+                  );
                 }
               }
             } catch (e) {
@@ -1873,13 +2155,19 @@ class ApiManager {
   }
 
   /// Refresh ss_token (POST /games.php/update_sstoken)
-  static Future<Map<String, dynamic>?> updateSstoken({required String ssToken}) async {
+  static Future<Map<String, dynamic>?> updateSstoken({
+    required String ssToken,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sudUpdateSstoken);
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'ss_token': ssToken}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'ss_token': ssToken},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] updateSstoken timeout or error: $e');
         return null;
@@ -1900,13 +2188,19 @@ class ApiManager {
   }
 
   /// Get user info using ss_token (POST /games.php/get_user_info)
-  static Future<Map<String, dynamic>?> getUserInfoSUD({required String ssToken}) async {
+  static Future<Map<String, dynamic>?> getUserInfoSUD({
+    required String ssToken,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sudGetUserInfo);
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'ss_token': ssToken}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'ss_token': ssToken},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getUserInfoSUD timeout or error: $e');
         return null;
@@ -1935,7 +2229,11 @@ class ApiManager {
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'user_id': userId.toString()}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'user_id': userId.toString()},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getUserInfoById timeout or error: $e');
         return null;
@@ -1951,7 +2249,8 @@ class ApiManager {
         if (decoded['status'] == 'success' && decoded['data'] is Map) {
           return Map<String, dynamic>.from(decoded['data'] as Map);
         }
-        if (decoded['data'] is Map) return Map<String, dynamic>.from(decoded['data'] as Map);
+        if (decoded['data'] is Map)
+          return Map<String, dynamic>.from(decoded['data'] as Map);
       }
 
       return null;
@@ -1962,7 +2261,12 @@ class ApiManager {
   }
 
   /// Report game info (game_start / game_settle) (POST /games.php/report_game_info)
-  static Future<bool> reportGameInfo({required String reportType, required Map<String, dynamic> reportMsg, required String uid, required String ssToken}) async {
+  static Future<bool> reportGameInfo({
+    required String reportType,
+    required Map<String, dynamic> reportMsg,
+    required String uid,
+    required String ssToken,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sudReportGameInfo);
       final headers = {'Accept': 'application/json'};
@@ -1974,7 +2278,11 @@ class ApiManager {
           'uid': uid,
           'ss_token': ssToken,
         };
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] reportGameInfo timeout or error: $e');
         return false;
@@ -1984,7 +2292,9 @@ class ApiManager {
       if (response.body.trim().isEmpty) return false;
       final decoded = json.decode(response.body);
       if (decoded is Map && decoded['ret_code'] == 0) return true;
-      print('[ApiManager] reportGameInfo failed: ${decoded['ret_msg'] ?? decoded}');
+      print(
+        '[ApiManager] reportGameInfo failed: ${decoded['ret_msg'] ?? decoded}',
+      );
       return false;
     } catch (e) {
       print('[ApiManager] reportGameInfo error: $e');
@@ -1999,7 +2309,11 @@ class ApiManager {
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'uid': uid}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'uid': uid},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getAccount timeout or error: $e');
         return null;
@@ -2021,7 +2335,11 @@ class ApiManager {
 
   // ----------------- User Chat HTTP helpers -----------------
   /// Send a private chat message via backend
-  static Future<bool> sendChatMessage({required int fromUserId, required int toUserId, required String message}) async {
+  static Future<bool> sendChatMessage({
+    required int fromUserId,
+    required int toUserId,
+    required String message,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sendChatMessageUrl);
       final headers = {'Accept': 'application/json'};
@@ -2035,7 +2353,11 @@ class ApiManager {
       };
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] sendChatMessage timeout or error: $e');
         return false;
@@ -2044,7 +2366,9 @@ class ApiManager {
       if (response.statusCode != 200) return false;
       if (response.body.trim().isEmpty) return false;
       final decoded = json.decode(response.body);
-      if (decoded is Map && (decoded['status'] == 'success' || decoded['ret_code'] == 0)) return true;
+      if (decoded is Map &&
+          (decoded['status'] == 'success' || decoded['ret_code'] == 0))
+        return true;
       print('[ApiManager] sendChatMessage failed: ${response.body}');
       return false;
     } catch (e) {
@@ -2055,7 +2379,13 @@ class ApiManager {
 
   /// Send a voice message via multipart form-data.
   /// Matches backend fields: sender_id, receiver_id, message (optional), voice (file), duration (seconds)
-  static Future<bool> sendVoiceMessage({required int fromUserId, required int toUserId, File? voiceFile, int? duration, String? message}) async {
+  static Future<bool> sendVoiceMessage({
+    required int fromUserId,
+    required int toUserId,
+    File? voiceFile,
+    int? duration,
+    String? message,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sendChatMessageUrl);
       // Build multipart request
@@ -2076,20 +2406,30 @@ class ApiManager {
       // Attach voice file if provided
       if (voiceFile != null && await voiceFile.exists()) {
         final filename = voiceFile.path.split(Platform.pathSeparator).last;
-        final mf = await http.MultipartFile.fromPath('voice', voiceFile.path, filename: filename);
+        final mf = await http.MultipartFile.fromPath(
+          'voice',
+          voiceFile.path,
+          filename: filename,
+        );
         request.files.add(mf);
       }
 
       // Send request
-      final streamed = await request.send().timeout(const Duration(seconds: 20));
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
       final response = await http.Response.fromStream(streamed);
       if (response.statusCode != 200) {
-        print('[ApiManager] sendVoiceMessage failed status: ${response.statusCode} body: ${response.body}');
+        print(
+          '[ApiManager] sendVoiceMessage failed status: ${response.statusCode} body: ${response.body}',
+        );
         return false;
       }
       if (response.body.trim().isEmpty) return false;
       final decoded = json.decode(response.body);
-      if (decoded is Map && (decoded['status'] == 'success' || decoded['ret_code'] == 0)) return true;
+      if (decoded is Map &&
+          (decoded['status'] == 'success' || decoded['ret_code'] == 0))
+        return true;
       print('[ApiManager] sendVoiceMessage failed: ${response.body}');
       return false;
     } catch (e) {
@@ -2100,7 +2440,12 @@ class ApiManager {
 
   /// Send an image attachment as a chat message via multipart form-data.
   /// Fields supported: sender_id, receiver_id, message (optional), image (file)
-  static Future<Map<String, dynamic>?> sendImageMessage({required int fromUserId, required int toUserId, File? imageFile, String? message}) async {
+  static Future<Map<String, dynamic>?> sendImageMessage({
+    required int fromUserId,
+    required int toUserId,
+    File? imageFile,
+    String? message,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sendChatMessageUrl);
       final request = http.MultipartRequest('POST', uri);
@@ -2114,14 +2459,22 @@ class ApiManager {
 
       if (imageFile != null && await imageFile.exists()) {
         final filename = imageFile.path.split(Platform.pathSeparator).last;
-        final mf = await http.MultipartFile.fromPath('image', imageFile.path, filename: filename);
+        final mf = await http.MultipartFile.fromPath(
+          'image',
+          imageFile.path,
+          filename: filename,
+        );
         request.files.add(mf);
       }
 
-      final streamed = await request.send().timeout(const Duration(seconds: 20));
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 20),
+      );
       final response = await http.Response.fromStream(streamed);
       if (response.statusCode != 200) {
-        print('[ApiManager] sendImageMessage failed status: ${response.statusCode} body: ${response.body}');
+        print(
+          '[ApiManager] sendImageMessage failed status: ${response.statusCode} body: ${response.body}',
+        );
         return null;
       }
       if (response.body.trim().isEmpty) return null;
@@ -2132,7 +2485,9 @@ class ApiManager {
         print('[ApiManager] sendImageMessage failed: ${response.body}');
         return map;
       }
-      print('[ApiManager] sendImageMessage unexpected response: ${response.body}');
+      print(
+        '[ApiManager] sendImageMessage unexpected response: ${response.body}',
+      );
       return null;
     } catch (e) {
       print('[ApiManager] sendImageMessage error: $e');
@@ -2147,7 +2502,11 @@ class ApiManager {
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'user_id': userId.toString()}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'user_id': userId.toString()},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getConversations timeout or error: $e');
         return null;
@@ -2182,13 +2541,16 @@ class ApiManager {
           }
 
           // Some APIs wrap the list under data->conversations (empty is valid)
-          if (decoded['data'] is Map && decoded['data']['conversations'] is List) {
+          if (decoded['data'] is Map &&
+              decoded['data']['conversations'] is List) {
             return List<dynamic>.from(decoded['data']['conversations']);
           }
 
           // Sometimes the API returns a map keyed by id: { "conversations": { "123": {...}, "124": {...} } }
           if (decoded['conversations'] is Map) {
-            final vals = (decoded['conversations'] as Map).values.map((e) => e).toList();
+            final vals = (decoded['conversations'] as Map).values
+                .map((e) => e)
+                .toList();
             if (vals.isNotEmpty) return vals;
           }
           if (decoded['data'] is Map) {
@@ -2207,7 +2569,9 @@ class ApiManager {
       }
 
       // Unknown format or empty result. Try alternative endpoint (legacy User-to-User_Chat_API.php)
-      print('[ApiManager] getConversations: unexpected response format or empty: ${response.body}');
+      print(
+        '[ApiManager] getConversations: unexpected response format or empty: ${response.body}',
+      );
 
       try {
         // Try legacy User-to-User_Chat_API.php using existing _makeApiCall helper with action=get_chatrooms
@@ -2220,16 +2584,22 @@ class ApiManager {
           final d = legacyResponse.data;
           if (d is List) return d;
           if (d is Map) {
-            if (d['conversations'] is List) return List<dynamic>.from(d['conversations']);
-            if (d['chatrooms'] is List) return List<dynamic>.from(d['chatrooms']);
+            if (d['conversations'] is List)
+              return List<dynamic>.from(d['conversations']);
+            if (d['chatrooms'] is List)
+              return List<dynamic>.from(d['chatrooms']);
             if (d['data'] is List) return List<dynamic>.from(d['data']);
             // If single conversation returned in data object
             if (d.containsKey('id') || (d['id'] != null)) return [d];
           }
           // If legacyResponse.data is a primitive or unexpected, fallthrough
-          print('[ApiManager] legacy get_chatrooms returned unexpected data: ${legacyResponse.data}');
+          print(
+            '[ApiManager] legacy get_chatrooms returned unexpected data: ${legacyResponse.data}',
+          );
         } else {
-          print('[ApiManager] legacy get_chatrooms failed: ${legacyResponse.message}');
+          print(
+            '[ApiManager] legacy get_chatrooms failed: ${legacyResponse.message}',
+          );
         }
       } catch (e) {
         print('[ApiManager] legacy get_chatrooms error: $e');
@@ -2243,7 +2613,11 @@ class ApiManager {
   }
 
   /// Get messages for a conversation
-  static Future<List<dynamic>?> getConversationMessages({int? conversationId, int? userId, int? otherUserId}) async {
+  static Future<List<dynamic>?> getConversationMessages({
+    int? conversationId,
+    int? userId,
+    int? otherUserId,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.getConversationMessagesUrl);
       final headers = {'Accept': 'application/json'};
@@ -2252,17 +2626,26 @@ class ApiManager {
       // Accept either conversation_id OR user_id + other_user_id as supported by the API
       if (conversationId != null && conversationId > 0) {
         body['conversation_id'] = conversationId.toString();
-      } else if (userId != null && otherUserId != null && userId > 0 && otherUserId > 0) {
+      } else if (userId != null &&
+          otherUserId != null &&
+          userId > 0 &&
+          otherUserId > 0) {
         body['user_id'] = userId.toString();
         body['other_user_id'] = otherUserId.toString();
       } else {
-        print('[ApiManager] getConversationMessages called without valid identifiers');
+        print(
+          '[ApiManager] getConversationMessages called without valid identifiers',
+        );
         return null;
       }
 
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getConversationMessages timeout or error: $e');
         return null;
@@ -2273,14 +2656,18 @@ class ApiManager {
       final decoded = json.decode(response.body);
       if (decoded is Map) {
         // Prefer 'data.messages' shape
-        if (decoded.containsKey('data') && decoded['data'] is Map && (decoded['data'] as Map).containsKey('messages')) {
+        if (decoded.containsKey('data') &&
+            decoded['data'] is Map &&
+            (decoded['data'] as Map).containsKey('messages')) {
           final msgs = (decoded['data'] as Map)['messages'];
           if (msgs is List) return msgs;
         }
         // Or top-level 'messages'
-        if (decoded.containsKey('messages') && decoded['messages'] is List) return decoded['messages'] as List<dynamic>;
+        if (decoded.containsKey('messages') && decoded['messages'] is List)
+          return decoded['messages'] as List<dynamic>;
         // Or 'data' directly as list
-        if (decoded.containsKey('data') && decoded['data'] is List) return decoded['data'] as List<dynamic>;
+        if (decoded.containsKey('data') && decoded['data'] is List)
+          return decoded['data'] as List<dynamic>;
       }
       if (decoded is List) return decoded;
       return null;
@@ -2291,13 +2678,23 @@ class ApiManager {
   }
 
   /// Get chat user status (online/blocked/etc)
-  static Future<Map<String, dynamic>?> getChatUserStatus({required int userId, required int targetUserId}) async {
+  static Future<Map<String, dynamic>?> getChatUserStatus({
+    required int userId,
+    required int targetUserId,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.getChatUserStatusUrl);
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'user_id': userId.toString(), 'blocked_user_id': targetUserId.toString()}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {
+            'user_id': userId.toString(),
+            'blocked_user_id': targetUserId.toString(),
+          },
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getChatUserStatus timeout or error: $e');
         return null;
@@ -2315,7 +2712,11 @@ class ApiManager {
   }
 
   /// Block or unblock a user
-  static Future<bool> blockUnblockUser({required int userId, required int targetUserId, required bool block}) async {
+  static Future<bool> blockUnblockUser({
+    required int userId,
+    required int targetUserId,
+    required bool block,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.blockUnblockUserUrl);
       final headers = {'Accept': 'application/json'};
@@ -2328,7 +2729,11 @@ class ApiManager {
       };
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] blockUnblockUser timeout or error: $e');
         return false;
@@ -2337,7 +2742,9 @@ class ApiManager {
       if (response.statusCode != 200) return false;
       if (response.body.trim().isEmpty) return false;
       final decoded = json.decode(response.body);
-      if (decoded is Map && (decoded['status'] == 'success' || decoded['ret_code'] == 0)) return true;
+      if (decoded is Map &&
+          (decoded['status'] == 'success' || decoded['ret_code'] == 0))
+        return true;
       print('[ApiManager] blockUnblockUser failed: ${response.body}');
       return false;
     } catch (e) {
@@ -2353,7 +2760,11 @@ class ApiManager {
       final headers = {'Accept': 'application/json'};
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: {'uid': uid}).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: {'uid': uid},
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] getScore timeout or error: $e');
         return null;
@@ -2374,7 +2785,14 @@ class ApiManager {
   }
 
   /// Update score (POST /games.php/update_score)
-  static Future<Map<String, dynamic>?> updateScore({required String orderId, required String mgId, required String roundId, required String uid, required int score, required int type}) async {
+  static Future<Map<String, dynamic>?> updateScore({
+    required String orderId,
+    required String mgId,
+    required String roundId,
+    required String uid,
+    required int score,
+    required int type,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.sudUpdateScore);
       final headers = {'Accept': 'application/json'};
@@ -2388,7 +2806,11 @@ class ApiManager {
           'score': score.toString(),
           'type': type.toString(),
         };
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] updateScore timeout or error: $e');
         return null;
@@ -2417,7 +2839,10 @@ class ApiManager {
   }
 
   /// Mark conversation messages as read via HTTP using user_id + other_user_id
-  static Future<bool> markChatRead({required int userId, required int otherUserId}) async {
+  static Future<bool> markChatRead({
+    required int userId,
+    required int otherUserId,
+  }) async {
     try {
       final uri = Uri.parse(ApiConstants.markAsReadUrl);
       final headers = {'Accept': 'application/json'};
@@ -2427,7 +2852,11 @@ class ApiManager {
       };
       http.Response? response;
       try {
-        response = await _postWithFallback(uri, headers: headers, body: body).timeout(const Duration(seconds: 8));
+        response = await _postWithFallback(
+          uri,
+          headers: headers,
+          body: body,
+        ).timeout(const Duration(seconds: 8));
       } catch (e) {
         print('[ApiManager] markChatRead timeout or error: $e');
         return false;
@@ -2436,7 +2865,9 @@ class ApiManager {
       if (response.statusCode == 200 && response.body.trim().isNotEmpty) {
         try {
           final decoded = json.decode(response.body);
-          if (decoded is Map && (decoded['status'] == 'success' || decoded['ret_code'] == 0)) return true;
+          if (decoded is Map &&
+              (decoded['status'] == 'success' || decoded['ret_code'] == 0))
+            return true;
         } catch (_) {}
       }
       // Fallback when mark_as_read.php returns 404: use User-to-User_Chat_API.php
@@ -2458,8 +2889,6 @@ class ApiManager {
       return false;
     }
   }
- 
-  
 
   // ✅ 6. DELETE MESSAGE
   static Future<BaseResponseModel> deleteMessage(int messageId) async {
@@ -2469,120 +2898,120 @@ class ApiManager {
     });
   }
 
-
-
   /////////////////////////////////////////////////////
   ////////// Admin__Meassages///////////////////////////
   /////////////////////////////////////////////////////
-// ✅ ADMIN MESSAGES KE LIYE METHODS
+  // ✅ ADMIN MESSAGES KE LIYE METHODS
 
-// 1️⃣ Get Admin Messages (User ke liye)
-static Future<List<AdminMessage>> getAdminMessages(int userId) async {
-  try {
-    final headers = {
-      'Authorization': 'Bearer mySuperSecretStaticToken123',
-      'Cookie': 'PHPSESSID=6fb17d30923a695d88ee7094671fc732'
-    };
+  // 1️⃣ Get Admin Messages (User ke liye)
+  static Future<List<AdminMessage>> getAdminMessages(int userId) async {
+    try {
+      final headers = {
+        'Authorization': 'Bearer mySuperSecretStaticToken123',
+        'Cookie': 'PHPSESSID=6fb17d30923a695d88ee7094671fc732',
+      };
 
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('${ApiConstants.baseUrl}Admin_Message_API.php'),
-    );
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConstants.baseUrl}Admin_Message_API.php'),
+      );
 
-    request.fields.addAll({
-      'action': 'get_all', // ✅ Backend expects: send, get, delete, get_all
-      'user_id': userId.toString(),
-    });
+      request.fields.addAll({
+        'action': 'get_all', // ✅ Backend expects: send, get, delete, get_all
+        'user_id': userId.toString(),
+      });
 
-    request.headers.addAll(headers);
+      request.headers.addAll(headers);
 
-    http.StreamedResponse response = await request.send();
+      http.StreamedResponse response = await request.send();
 
-    if (response.statusCode == 200) {
-      String responseBody = await response.stream.bytesToString();
-      print('📩 Admin Messages Response: $responseBody');
+      if (response.statusCode == 200) {
+        String responseBody = await response.stream.bytesToString();
+        print('📩 Admin Messages Response: $responseBody');
 
-      Map<String, dynamic> jsonResponse = json.decode(responseBody);
+        Map<String, dynamic> jsonResponse = json.decode(responseBody);
 
-      if (jsonResponse['status'] == 'success') {
-        // ✅ data is a map with 'messages' array inside
-        Map<String, dynamic>? dataMap = jsonResponse['data'];
-        if (dataMap != null && dataMap['messages'] != null) {
-          List<dynamic> messagesJson = dataMap['messages'] as List<dynamic>;
-          return messagesJson.map((json) => AdminMessage.fromJson(json)).toList();
+        if (jsonResponse['status'] == 'success') {
+          // ✅ data is a map with 'messages' array inside
+          Map<String, dynamic>? dataMap = jsonResponse['data'];
+          if (dataMap != null && dataMap['messages'] != null) {
+            List<dynamic> messagesJson = dataMap['messages'] as List<dynamic>;
+            return messagesJson
+                .map((json) => AdminMessage.fromJson(json))
+                .toList();
+          }
+          return [];
+        } else {
+          print('❌ Failed to get admin messages: ${jsonResponse['message']}');
+          return [];
         }
-        return [];
       } else {
-        print('❌ Failed to get admin messages: ${jsonResponse['message']}');
+        print('❌ HTTP Error: ${response.statusCode}');
         return [];
       }
-    } else {
-      print('❌ HTTP Error: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Exception getting admin messages: $e');
       return [];
     }
-  } catch (e) {
-    print('❌ Exception getting admin messages: $e');
-    return [];
   }
-}
 
-// 2️⃣ Send Admin Message (Admin panel ke liye - optional)
-static Future<BaseResponseModel> sendAdminMessage({
-  required String messageType,
-  required String title,
-  required String content,
-  required String country,
-}) async {
-  try {
-    final headers = {
-      'Authorization': 'Bearer mySuperSecretStaticToken123',
-      'Cookie': 'PHPSESSID=6fb17d30923a695d88ee7094671fc732'
-    };
+  // 2️⃣ Send Admin Message (Admin panel ke liye - optional)
+  static Future<BaseResponseModel> sendAdminMessage({
+    required String messageType,
+    required String title,
+    required String content,
+    required String country,
+  }) async {
+    try {
+      final headers = {
+        'Authorization': 'Bearer mySuperSecretStaticToken123',
+        'Cookie': 'PHPSESSID=6fb17d30923a695d88ee7094671fc732',
+      };
 
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('${ApiConstants.baseUrl}Admin_Message_API.php'),
-    );
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConstants.baseUrl}Admin_Message_API.php'),
+      );
 
-    request.fields.addAll({
-      'action': 'send',
-      'message_type': messageType,
-      'title': title,
-      'content': content,
-      'country': country,
-    });
+      request.fields.addAll({
+        'action': 'send',
+        'message_type': messageType,
+        'title': title,
+        'content': content,
+        'country': country,
+      });
 
-    request.headers.addAll(headers);
+      request.headers.addAll(headers);
 
-    http.StreamedResponse response = await request.send();
+      http.StreamedResponse response = await request.send();
 
-    if (response.statusCode == 200) {
-      String responseBody = await response.stream.bytesToString();
-      print('📤 Admin Message Sent: $responseBody');
+      if (response.statusCode == 200) {
+        String responseBody = await response.stream.bytesToString();
+        print('📤 Admin Message Sent: $responseBody');
 
-      Map<String, dynamic> jsonResponse = json.decode(responseBody);
-      return BaseResponseModel.fromJson(jsonResponse);
-    } else {
+        Map<String, dynamic> jsonResponse = json.decode(responseBody);
+        return BaseResponseModel.fromJson(jsonResponse);
+      } else {
+        return BaseResponseModel(
+          success: false,
+          message: 'HTTP Error: ${response.statusCode}',
+          status: 'error',
+        );
+      }
+    } catch (e) {
+      print('❌ Exception sending admin message: $e');
       return BaseResponseModel(
         success: false,
-        message: 'HTTP Error: ${response.statusCode}',
+        message: 'Exception: $e',
         status: 'error',
       );
     }
-  } catch (e) {
-    print('❌ Exception sending admin message: $e');
-    return BaseResponseModel(
-      success: false,
-      message: 'Exception: $e',
-      status: 'error',
-    );
-  }
   }
 
   static Future<List<dynamic>> getAllRooms() async {
     print("🔄 [ApiManager.getAllRooms] ========== API CALL STARTED ==========");
     print("🔄 [ApiManager.getAllRooms] URL: ${ApiConstants.getAllRooms}");
-    
+
     var headers = {
       'Authorization': 'Bearer mySuperSecretStaticToken123',
       'Cookie': 'PHPSESSID=511115a174825e3508bcd1a868eb513a',
@@ -2594,72 +3023,95 @@ static Future<BaseResponseModel> sendAdminMessage({
         Uri.parse(ApiConstants.getAllRooms),
         headers: headers,
       );
-      print("🔄 [ApiManager.getAllRooms] HTTP request completed, status: ${response.statusCode}");
+      print(
+        "🔄 [ApiManager.getAllRooms] HTTP request completed, status: ${response.statusCode}",
+      );
 
       if (response.statusCode == 200) {
         print("🔄 [getAllRooms] ========== API CALL SUCCESS ==========");
         print("🔄 [getAllRooms] Status Code: ${response.statusCode}");
         print("🔄 [getAllRooms] Response Body Length: ${response.body.length}");
-        
+
         final decoded = json.decode(response.body);
         print("✅ [getAllRooms] Decoded Response Type: ${decoded.runtimeType}");
         print("✅ [getAllRooms] Full Response: $decoded");
-        
+
         List<dynamic> roomsList = [];
-        
+
         // Case 1: List directly
         if (decoded is List) {
           roomsList = decoded;
-          print("✅ [getAllRooms] Response is List, found ${roomsList.length} rooms");
+          print(
+            "✅ [getAllRooms] Response is List, found ${roomsList.length} rooms",
+          );
         }
         // Case 2: Response contains a 'rooms' array
         else if (decoded is Map && decoded["rooms"] is List) {
           roomsList = decoded["rooms"];
-          print("✅ [getAllRooms] Response is Map with 'rooms' key, found ${roomsList.length} rooms");
-        }
-        else {
+          print(
+            "✅ [getAllRooms] Response is Map with 'rooms' key, found ${roomsList.length} rooms",
+          );
+        } else {
           print("⚠️ [getAllRooms] Unexpected format!");
           print("⚠️ [getAllRooms] Response body: ${response.body}");
           return [];
         }
-        
+
         // Debug: Print first room to see available fields
         if (roomsList.isNotEmpty) {
           print("🔍 [getAllRooms] ========== FIRST ROOM ANALYSIS ==========");
           final firstRoom = roomsList[0] as Map;
           print("🔍 [getAllRooms] First Room Keys: ${firstRoom.keys.toList()}");
           print("🔍 [getAllRooms] First Room Full Data: $firstRoom");
-          
+
           // Check for views field
           if (firstRoom.containsKey('views')) {
-            print("✅ [getAllRooms] 'views' field FOUND: ${firstRoom['views']} (type: ${firstRoom['views'].runtimeType})");
+            print(
+              "✅ [getAllRooms] 'views' field FOUND: ${firstRoom['views']} (type: ${firstRoom['views'].runtimeType})",
+            );
           } else {
             print("⚠️ [getAllRooms] 'views' field NOT found!");
           }
-          
+
           // Check for other possible view-related fields
-          final possibleViewFields = ['view_count', 'total_views', 'viewers', 'view_count', 'total_viewers', 'engagement', 'popularity'];
+          final possibleViewFields = [
+            'view_count',
+            'total_views',
+            'viewers',
+            'view_count',
+            'total_viewers',
+            'engagement',
+            'popularity',
+          ];
           for (var field in possibleViewFields) {
             if (firstRoom.containsKey(field)) {
-              print("🔍 [getAllRooms] Found alternative field '$field': ${firstRoom[field]}");
+              print(
+                "🔍 [getAllRooms] Found alternative field '$field': ${firstRoom[field]}",
+              );
             }
           }
           print("🔍 [getAllRooms] ========================================");
         } else {
           print("⚠️ [getAllRooms] No rooms found in response!");
         }
-        
-        print("✅ [ApiManager.getAllRooms] ========== API CALL SUCCESS ==========");
+
+        print(
+          "✅ [ApiManager.getAllRooms] ========== API CALL SUCCESS ==========",
+        );
         return roomsList;
       } else {
-        print("❌ [ApiManager.getAllRooms] ========== API CALL FAILED ==========");
+        print(
+          "❌ [ApiManager.getAllRooms] ========== API CALL FAILED ==========",
+        );
         print("❌ [ApiManager.getAllRooms] Status Code: ${response.statusCode}");
         print("❌ [ApiManager.getAllRooms] Reason: ${response.reasonPhrase}");
         print("❌ [ApiManager.getAllRooms] Response Body: ${response.body}");
         return [];
       }
     } catch (e, stackTrace) {
-      print("❌ [ApiManager.getAllRooms] ========== EXCEPTION OCCURRED ==========");
+      print(
+        "❌ [ApiManager.getAllRooms] ========== EXCEPTION OCCURRED ==========",
+      );
       print("❌ [ApiManager.getAllRooms] Exception: $e");
       print("❌ [ApiManager.getAllRooms] StackTrace: $stackTrace");
       return [];
@@ -2672,14 +3124,14 @@ static Future<BaseResponseModel> sendAdminMessage({
   static Future<List<dynamic>> getAllUsers() async {
     try {
       final uri = Uri.parse(ApiConstants.getAllUsers);
-      
+
       print("📤 ========== GET ALL USERS API ==========");
       print("📤 Endpoint: $uri");
       print("📤 Method: POST (Multipart Form-Data)");
 
       // ✅ Use MultipartRequest (form-data) like other APIs
       var request = http.MultipartRequest('POST', uri);
-      
+
       // Headers - same as other working APIs
       request.headers.addAll({
         'Authorization': 'Bearer mySuperSecretStaticToken123',
@@ -2691,12 +3143,12 @@ static Future<BaseResponseModel> sendAdminMessage({
 
       print("📥 Response Status: ${response.statusCode}");
       print("📥 ========== GET ALL USERS API RESPONSE ==========");
-        print("${responseBody.length}");
+      print("${responseBody.length}");
       print("📥 Response Body Length: ${responseBody.length}");
       print("📥 ========== GET ALL USERS API RESPONSE ==========");
       print("📥 Full Response Body:");
       print(responseBody);
-      
+
       print("📥 ================================================");
 
       if (response.statusCode == 200) {
@@ -2705,12 +3157,14 @@ static Future<BaseResponseModel> sendAdminMessage({
           String cleanedResponse = responseBody.trim();
           if (cleanedResponse.contains('<!--')) {
             print("🧹 Stripping HTML comments from response...");
-            cleanedResponse = cleanedResponse.substring(0, cleanedResponse.indexOf('<!--')).trim();
+            cleanedResponse = cleanedResponse
+                .substring(0, cleanedResponse.indexOf('<!--'))
+                .trim();
             print("🧹 Cleaned Response Length: ${cleanedResponse.length}");
           }
 
           final decoded = json.decode(cleanedResponse);
-          print("✅ JSON Decoded Successfully for all users"  );
+          print("✅ JSON Decoded Successfully for all users");
           print("✅ Decoded Type: ${decoded.runtimeType}");
           if (decoded is Map) {
             print("✅ Response Keys: ${decoded.keys.toList()}");
@@ -2724,13 +3178,17 @@ static Future<BaseResponseModel> sendAdminMessage({
 
           // Case 2: Response contains a 'users' array
           if (decoded is Map && decoded["users"] is List) {
-            print("✅ Response contains 'users' array with ${decoded["users"].length} items");
+            print(
+              "✅ Response contains 'users' array with ${decoded["users"].length} items",
+            );
             return decoded["users"];
           }
 
           // Case 3: Response contains a 'data' array
           if (decoded is Map && decoded["data"] is List) {
-            print("✅ Response contains 'data' array with ${decoded["data"].length} items");
+            print(
+              "✅ Response contains 'data' array with ${decoded["data"].length} items",
+            );
             return decoded["data"];
           }
 
@@ -2750,29 +3208,30 @@ static Future<BaseResponseModel> sendAdminMessage({
     }
   }
 
-
-static Future<List<dynamic>> getAllCpUsers() async {
+  static Future<List<dynamic>> getAllCpUsers() async {
     try {
-      final uri = Uri.parse("https://shaheenstar.online/get_all_users.php?is_cp=true");
-      
+      final uri = Uri.parse(
+        "https://shaheenstar.online/get_all_users.php?is_cp=true",
+      );
+
       print("📤 GET ALL CP USERS API");
       print("📤 Endpoint: $uri");
 
       // Send GET request with Authorization header
-      final response = await http.get(uri, headers: {
-        'Authorization': 'Bearer mySuperSecretStaticToken123',
-        'Accept': 'application/json',
-      });
+      final response = await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer mySuperSecretStaticToken123',
+          'Accept': 'application/json',
+        },
+      );
 
       print("📥 Response Status: ${response.statusCode}");
       print("📥 Response Body Length: ${response.body.length}");
 
       if (response.statusCode == 200) {
-        
-
         final decoded = json.decode(response.body);
 
-        
         if (decoded is Map && decoded['users'] is List) {
           print("✅ Fetched ${decoded['users'].length} CP users");
           return decoded['users'];
@@ -2790,15 +3249,15 @@ static Future<List<dynamic>> getAllCpUsers() async {
     }
   }
 
-
-
-static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Management_API.php';
+  static const String _baseUrl =
+      '${ApiConstants.baseUrl}Room_Seats_Management_API.php';
 
   // ✅ Helper method to encode form data
   static String _encodeFormData(Map<String, dynamic> data) {
     return data.entries
         .map(
-          (e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}',
+          (e) =>
+              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value.toString())}',
         )
         .join('&');
   }
@@ -2807,9 +3266,11 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   static Map<String, dynamic> _cleanAndParseResponse(String responseBody) {
     try {
       var bodyText = responseBody.trim();
-      
+
       print("📄 Raw Response Length: ${bodyText.length}");
-      print("📄 First 200 chars: ${bodyText.substring(0, bodyText.length > 200 ? 200 : bodyText.length)}");
+      print(
+        "📄 First 200 chars: ${bodyText.substring(0, bodyText.length > 200 ? 200 : bodyText.length)}",
+      );
 
       // JSON start dhundo
       final jsonStart = bodyText.indexOf('{');
@@ -2845,7 +3306,6 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       // Decode karo
       return json.decode(cleanJson);
-      
     } catch (e) {
       print("❌ Parse Error: $e");
       return {'status': 'error', 'message': 'Parse error: $e'};
@@ -2872,14 +3332,17 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       if (response.statusCode == 200) {
         final decoded = _cleanAndParseResponse(response.body);
-        
+
         if (decoded['data'] != null && decoded['data']['seats'] != null) {
           print("🎯 Seats loaded: ${decoded['data']['seats'].length}");
         }
-        
+
         return decoded;
       } else {
-        return {'status': 'error', 'message': 'HTTP Error: ${response.statusCode}'};
+        return {
+          'status': 'error',
+          'message': 'HTTP Error: ${response.statusCode}',
+        };
       }
     } catch (e) {
       print("❌ Get Seats Exception: $e");
@@ -2983,8 +3446,11 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         print("✅ Vacate Result: $result");
         return result;
       }
-      
-      return {'status': 'error', 'message': 'Network error: ${response.statusCode}'};
+
+      return {
+        'status': 'error',
+        'message': 'Network error: ${response.statusCode}',
+      };
     } catch (e) {
       print("❌ Vacate Seat Exception: $e");
       return {'status': 'error', 'message': 'Exception: $e'};
@@ -3065,12 +3531,16 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           // Remove HTML comments from response (backend sometimes includes them)
           String cleanedResponse = responseBody;
           if (cleanedResponse.contains('<!--')) {
-            cleanedResponse = cleanedResponse.substring(0, cleanedResponse.indexOf('<!--')).trim();
+            cleanedResponse = cleanedResponse
+                .substring(0, cleanedResponse.indexOf('<!--'))
+                .trim();
             print('🔍 [ApiManager] Removed HTML comments from response');
           }
-          
+
           print('🔍 [ApiManager] Step 2: Decoding JSON...');
-          print('🔍 [ApiManager] Cleaned response length: ${cleanedResponse.length}');
+          print(
+            '🔍 [ApiManager] Cleaned response length: ${cleanedResponse.length}',
+          );
           final data = json.decode(cleanedResponse) as Map<String, dynamic>;
           print('🔍 [ApiManager] JSON decoded successfully');
           print('🔍 [ApiManager] Data keys: ${data.keys.toList()}');
@@ -3078,10 +3548,12 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           data.forEach((key, value) {
             print('   - $key: ${value.runtimeType} = $value');
           });
-          
+
           // Handle nested data structure: data.gold_coins
           Map<String, dynamic> responseData = data;
-          print('🔍 [ApiManager] Step 3: Processing response data structure...');
+          print(
+            '🔍 [ApiManager] Step 3: Processing response data structure...',
+          );
           if (data.containsKey('data') && data['data'] is Map) {
             // ✅ Safely convert to Map<String, dynamic>
             Map<String, dynamic> dataObj;
@@ -3099,80 +3571,120 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
             print('🔍 [ApiManager] Step 5: Converting status and message...');
             String statusValue = 'error';
             if (data['status'] != null) {
-              print('🔍 [ApiManager] status type: ${data['status'].runtimeType}, value: ${data['status']}');
+              print(
+                '🔍 [ApiManager] status type: ${data['status'].runtimeType}, value: ${data['status']}',
+              );
               statusValue = data['status'].toString();
               print('🔍 [ApiManager] status converted to: $statusValue');
             }
-            
+
             String? messageValue;
             if (data['message'] != null) {
-              print('🔍 [ApiManager] message type: ${data['message'].runtimeType}, value: ${data['message']}');
+              print(
+                '🔍 [ApiManager] message type: ${data['message'].runtimeType}, value: ${data['message']}',
+              );
               messageValue = data['message'].toString();
               print('🔍 [ApiManager] message converted to: $messageValue');
             }
-            
+
             // ✅ Safely convert user_id to String (handle int types)
             print('🔍 [ApiManager] Step 6: Converting user_id...');
             String userIdValue = '';
             if (dataObj['user_id'] != null) {
-              print('🔍 [ApiManager] dataObj[\'user_id\'] type: ${dataObj['user_id'].runtimeType}, value: ${dataObj['user_id']}');
+              print(
+                '🔍 [ApiManager] dataObj[\'user_id\'] type: ${dataObj['user_id'].runtimeType}, value: ${dataObj['user_id']}',
+              );
               userIdValue = dataObj['user_id'].toString();
               print('🔍 [ApiManager] user_id converted to: $userIdValue');
             } else if (data['user_id'] != null) {
-              print('🔍 [ApiManager] data[\'user_id\'] type: ${data['user_id'].runtimeType}, value: ${data['user_id']}');
+              print(
+                '🔍 [ApiManager] data[\'user_id\'] type: ${data['user_id'].runtimeType}, value: ${data['user_id']}',
+              );
               userIdValue = data['user_id'].toString();
               print('🔍 [ApiManager] user_id converted to: $userIdValue');
             }
-            
+
             // Merge data object into main response for easier parsing
             print('🔍 [ApiManager] Step 7: Building responseData map...');
-            print('🔍 [ApiManager] gold_coins type: ${dataObj['gold_coins'].runtimeType}, value: ${dataObj['gold_coins']}');
-            print('🔍 [ApiManager] diamond_coins type: ${dataObj['diamond_coins'].runtimeType}, value: ${dataObj['diamond_coins']}');
-            print('🔍 [ApiManager] merchant_coins type: ${dataObj['merchant_coins'].runtimeType}, value: ${dataObj['merchant_coins']}');
+            print(
+              '🔍 [ApiManager] gold_coins type: ${dataObj['gold_coins'].runtimeType}, value: ${dataObj['gold_coins']}',
+            );
+            print(
+              '🔍 [ApiManager] diamond_coins type: ${dataObj['diamond_coins'].runtimeType}, value: ${dataObj['diamond_coins']}',
+            );
+            print(
+              '🔍 [ApiManager] merchant_coins type: ${dataObj['merchant_coins'].runtimeType}, value: ${dataObj['merchant_coins']}',
+            );
             responseData = {
               'status': statusValue,
               'message': messageValue,
               'user_id': userIdValue,
               'gold_coins': dataObj['gold_coins'],
               'diamond_coins': dataObj['diamond_coins'],
-              'merchant_coins': dataObj['merchant_coins'], // ✅ Include merchant_coins if available
+              'merchant_coins':
+                  dataObj['merchant_coins'], // ✅ Include merchant_coins if available
               'balance': dataObj['gold_coins'], // Map gold_coins to balance
               'data': dataObj,
             };
             print('🔍 [ApiManager] responseData built successfully');
-            print('🔍 [ApiManager] responseData keys: ${responseData.keys.toList()}');
-            print('💰 [ApiManager] Response data keys: ${dataObj.keys.toList()}');
-            print('💰 [ApiManager] merchant_coins in response: ${dataObj['merchant_coins']}');
+            print(
+              '🔍 [ApiManager] responseData keys: ${responseData.keys.toList()}',
+            );
+            print(
+              '💰 [ApiManager] Response data keys: ${dataObj.keys.toList()}',
+            );
+            print(
+              '💰 [ApiManager] merchant_coins in response: ${dataObj['merchant_coins']}',
+            );
           } else {
-            print('🔍 [ApiManager] Step 4: No nested data structure, processing root level...');
+            print(
+              '🔍 [ApiManager] Step 4: No nested data structure, processing root level...',
+            );
             // ✅ Handle case where data is at root level - ensure status/message are strings
-            if (responseData['status'] != null && responseData['status'] is! String) {
-              print('🔍 [ApiManager] Converting root level status from ${responseData['status'].runtimeType} to String');
+            if (responseData['status'] != null &&
+                responseData['status'] is! String) {
+              print(
+                '🔍 [ApiManager] Converting root level status from ${responseData['status'].runtimeType} to String',
+              );
               responseData['status'] = responseData['status'].toString();
             }
-            if (responseData['message'] != null && responseData['message'] is! String) {
-              print('🔍 [ApiManager] Converting root level message from ${responseData['message'].runtimeType} to String');
+            if (responseData['message'] != null &&
+                responseData['message'] is! String) {
+              print(
+                '🔍 [ApiManager] Converting root level message from ${responseData['message'].runtimeType} to String',
+              );
               responseData['message'] = responseData['message'].toString();
             }
-            if (responseData['user_id'] != null && responseData['user_id'] is! String) {
-              print('🔍 [ApiManager] Converting root level user_id from ${responseData['user_id'].runtimeType} to String');
+            if (responseData['user_id'] != null &&
+                responseData['user_id'] is! String) {
+              print(
+                '🔍 [ApiManager] Converting root level user_id from ${responseData['user_id'].runtimeType} to String',
+              );
               responseData['user_id'] = responseData['user_id'].toString();
             }
             print('🔍 [ApiManager] Root level processing complete');
-            print('🔍 [ApiManager] Final responseData keys: ${responseData.keys.toList()}');
+            print(
+              '🔍 [ApiManager] Final responseData keys: ${responseData.keys.toList()}',
+            );
             print('🔍 [ApiManager] Final responseData types:');
             responseData.forEach((key, value) {
               print('   - $key: ${value.runtimeType} = $value');
             });
           }
-          
-          print('🔍 [ApiManager] Step 8: Calling UserBalanceResponse.fromJson...');
+
+          print(
+            '🔍 [ApiManager] Step 8: Calling UserBalanceResponse.fromJson...',
+          );
           UserBalanceResponse? balanceResponse;
           try {
-            print('🔍 [ApiManager] About to parse with UserBalanceResponse.fromJson');
+            print(
+              '🔍 [ApiManager] About to parse with UserBalanceResponse.fromJson',
+            );
             print('🔍 [ApiManager] responseData being passed: $responseData');
             balanceResponse = UserBalanceResponse.fromJson(responseData);
-            print('🔍 [ApiManager] UserBalanceResponse.fromJson completed successfully');
+            print(
+              '🔍 [ApiManager] UserBalanceResponse.fromJson completed successfully',
+            );
           } catch (e, stackTrace) {
             print('❌ [ApiManager] Error parsing UserBalanceResponse: $e');
             print('❌ [ApiManager] Error type: ${e.runtimeType}');
@@ -3187,10 +3699,16 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
           if (balanceResponse.isSuccess) {
             print('✅ User Balance Retrieved Successfully');
-            print('   - Balance (legacy/gold_coins): ${balanceResponse.balance}');
+            print(
+              '   - Balance (legacy/gold_coins): ${balanceResponse.balance}',
+            );
             print('   - Gold Coins: ${balanceResponse.goldCoins ?? 'N/A'}');
-            print('   - Diamond Coins: ${balanceResponse.diamondCoins ?? 'N/A'}');
-            print('   - Merchant Coins: ${balanceResponse.merchantCoins ?? 'N/A'}');
+            print(
+              '   - Diamond Coins: ${balanceResponse.diamondCoins ?? 'N/A'}',
+            );
+            print(
+              '   - Merchant Coins: ${balanceResponse.merchantCoins ?? 'N/A'}',
+            );
             return balanceResponse;
           } else {
             print('⚠️ API Error: ${balanceResponse.message}');
@@ -3231,11 +3749,14 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       // Request fields - Updated API format: admin_id, merchant_id, user_id, amount, action_type
       // Backend automatically adds to user's GOLD coins (not diamond coins)
-      request.fields['admin_id'] = merchantId.trim(); // admin_id is same as merchant_id for merchant transfers
+      request.fields['admin_id'] = merchantId
+          .trim(); // admin_id is same as merchant_id for merchant transfers
       request.fields['merchant_id'] = merchantId.trim();
-      request.fields['user_id'] = receiverId.trim(); // user_id is the receiver (user receiving coins)
+      request.fields['user_id'] = receiverId
+          .trim(); // user_id is the receiver (user receiving coins)
       request.fields['amount'] = amount.trim();
-      request.fields['action_type'] = 'merchant_to_user'; // Action type: merchant_to_user or admin_to_merchant
+      request.fields['action_type'] =
+          'merchant_to_user'; // Action type: merchant_to_user or admin_to_merchant
 
       print('💸 ========== MERCHANT TO USER TRANSFER API ==========');
       print('   - API Endpoint: ${ApiConstants.merchantCoinsDistribution}');
@@ -3249,8 +3770,12 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       print('     * user_id: ${request.fields['user_id']}');
       print('     * amount: ${request.fields['amount']}');
       print('     * action_type: ${request.fields['action_type']}');
-      print('   - Backend automatically adds to user\'s GOLD coins in user_coins table');
-      print('   - Backend deducts from merchant\'s merchant_coins in users table');
+      print(
+        '   - Backend automatically adds to user\'s GOLD coins in user_coins table',
+      );
+      print(
+        '   - Backend deducts from merchant\'s merchant_coins in users table',
+      );
       print('   - Full URL: ${uri.toString()}');
 
       print('📤 Sending HTTP request...');
@@ -3267,32 +3792,42 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           // Strip HTML comments from response (backend sometimes includes them)
           String cleanedResponse = responseBody;
           if (cleanedResponse.contains('<!--')) {
-            cleanedResponse = cleanedResponse.substring(0, cleanedResponse.indexOf('<!--')).trim();
+            cleanedResponse = cleanedResponse
+                .substring(0, cleanedResponse.indexOf('<!--'))
+                .trim();
             print('🧹 Stripped HTML comments from response');
           }
-          
+
           print('📋 Parsing JSON response...');
           final data = json.decode(cleanedResponse) as Map<String, dynamic>;
           print('   - JSON Keys: ${data.keys.toList()}');
           print('   - Raw JSON Data: $data');
-          
+
           print('📋 Creating CoinTransferResponse from JSON...');
           final transferResponse = CoinTransferResponse.fromJson(data);
-          
+
           print('📋 Parsed Response:');
           print('   - Status: ${transferResponse.status}');
           print('   - Message: ${transferResponse.message}');
           print('   - Is Success: ${transferResponse.isSuccess}');
-          print('   - Transaction ID: ${transferResponse.transactionId ?? 'N/A'}');
+          print(
+            '   - Transaction ID: ${transferResponse.transactionId ?? 'N/A'}',
+          );
           print('   - New Balance: ${transferResponse.newBalance ?? 'N/A'}');
-          print('   - Merchant Balance: ${transferResponse.merchantBalance ?? 'N/A'}');
+          print(
+            '   - Merchant Balance: ${transferResponse.merchantBalance ?? 'N/A'}',
+          );
 
           if (transferResponse.isSuccess) {
             print('✅ ========== TRANSFER SUCCESSFUL ==========');
-            print('   - Transaction ID: ${transferResponse.transactionId ?? 'N/A'}');
+            print(
+              '   - Transaction ID: ${transferResponse.transactionId ?? 'N/A'}',
+            );
             print('   - Message: ${transferResponse.message}');
             print('   - New Balance: ${transferResponse.newBalance ?? 'N/A'}');
-            print('   - Merchant Balance: ${transferResponse.merchantBalance ?? 'N/A'}');
+            print(
+              '   - Merchant Balance: ${transferResponse.merchantBalance ?? 'N/A'}',
+            );
             return transferResponse;
           } else {
             print('⚠️ ========== TRANSFER FAILED ==========');
@@ -3330,14 +3865,17 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.userToUserGifting);
-      
+
       // Ensure values are not empty
       final senderIdValue = senderId.trim();
       final receiverIdValue = receiverId.trim();
       final amountValue = amount.trim();
-      final roomIdValue = '0'; // Default room_id for direct user-to-user transfer
+      final roomIdValue =
+          '0'; // Default room_id for direct user-to-user transfer
 
-      if (senderIdValue.isEmpty || receiverIdValue.isEmpty || amountValue.isEmpty) {
+      if (senderIdValue.isEmpty ||
+          receiverIdValue.isEmpty ||
+          amountValue.isEmpty) {
         print('❌ Missing required values');
         print('   - Sender ID: $senderIdValue');
         print('   - Receiver ID: $receiverIdValue');
@@ -3347,7 +3885,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       // ✅ Use MultipartRequest (form-data) - API expects multipart/form-data
       var request = http.MultipartRequest('POST', uri);
-      
+
       // Headers - include Authorization like other working APIs
       request.headers.addAll({
         'Authorization': 'Bearer mySuperSecretStaticToken123',
@@ -3358,7 +3896,8 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       request.fields['sender_id'] = senderIdValue;
       request.fields['receiver_id'] = receiverIdValue;
       request.fields['room_id'] = roomIdValue;
-      request.fields['gift_value'] = amountValue; // API expects 'gift_value' not 'amount'
+      request.fields['gift_value'] =
+          amountValue; // API expects 'gift_value' not 'amount'
 
       print('🎁 ========== USER TO USER TRANSFER ==========');
       print('   - Sender ID: $senderIdValue');
@@ -3380,17 +3919,21 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       print('   - Headers: ${request.headers}');
       print('   - Fields Count: ${request.fields.length}');
       print('   - All Fields: ${request.fields}');
-      
+
       // Verify all required fields are present
-      if (!request.fields.containsKey('sender_id') || 
-          !request.fields.containsKey('receiver_id') || 
-          !request.fields.containsKey('room_id') || 
+      if (!request.fields.containsKey('sender_id') ||
+          !request.fields.containsKey('receiver_id') ||
+          !request.fields.containsKey('room_id') ||
           !request.fields.containsKey('gift_value')) {
         print('❌ ERROR: Missing fields in form data!');
         print('   - Has sender_id: ${request.fields.containsKey('sender_id')}');
-        print('   - Has receiver_id: ${request.fields.containsKey('receiver_id')}');
+        print(
+          '   - Has receiver_id: ${request.fields.containsKey('receiver_id')}',
+        );
         print('   - Has room_id: ${request.fields.containsKey('room_id')}');
-        print('   - Has gift_value: ${request.fields.containsKey('gift_value')}');
+        print(
+          '   - Has gift_value: ${request.fields.containsKey('gift_value')}',
+        );
         return null;
       }
 
@@ -3453,7 +3996,9 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       print('💎 ========== TRANSFER DIAMOND TO MERCHANT =========');
       print('   - Endpoint: ${ApiConstants.transferDiamondToMerchant}');
-      print('   - Fields: sender_id=$userId, merchant_id=$merchantId, diamond_coins=$amount');
+      print(
+        '   - Fields: sender_id=$userId, merchant_id=$merchantId, diamond_coins=$amount',
+      );
 
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
@@ -3619,12 +4164,16 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           // Remove HTML comments from response (backend sometimes includes them)
           String cleanedResponse = responseBody;
           if (cleanedResponse.contains('<!--')) {
-            cleanedResponse = cleanedResponse.substring(0, cleanedResponse.indexOf('<!--')).trim();
+            cleanedResponse = cleanedResponse
+                .substring(0, cleanedResponse.indexOf('<!--'))
+                .trim();
             print('🔍 [ApiManager] Removed HTML comments from response');
           }
-          
+
           print('🔍 [ApiManager] Step 2: Decoding JSON...');
-          print('🔍 [ApiManager] Cleaned response length: ${cleanedResponse.length}');
+          print(
+            '🔍 [ApiManager] Cleaned response length: ${cleanedResponse.length}',
+          );
           final data = json.decode(cleanedResponse) as Map<String, dynamic>;
           print('🔍 [ApiManager] JSON decoded successfully');
           print('🔍 [ApiManager] Data keys: ${data.keys.toList()}');
@@ -3632,22 +4181,30 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           data.forEach((key, value) {
             print('   - $key: ${value.runtimeType} = $value');
           });
-          
+
           // Handle nested data structure: data.transactions
           Map<String, dynamic> responseData = data;
-          print('🔍 [ApiManager] Step 3: Processing response data structure...');
+          print(
+            '🔍 [ApiManager] Step 3: Processing response data structure...',
+          );
           if (data.containsKey('data') && data['data'] is Map) {
             print('🔍 [ApiManager] Step 4: Found nested data structure');
             // ✅ Safely convert to Map<String, dynamic>
             Map<String, dynamic> dataObj;
             try {
               print('🔍 [ApiManager] Converting data object...');
-              print('🔍 [ApiManager] data[\'data\'] type: ${data['data'].runtimeType}');
+              print(
+                '🔍 [ApiManager] data[\'data\'] type: ${data['data'].runtimeType}',
+              );
               if (data['data'] is Map<String, dynamic>) {
-                print('🔍 [ApiManager] data[\'data\'] is already Map<String, dynamic>');
+                print(
+                  '🔍 [ApiManager] data[\'data\'] is already Map<String, dynamic>',
+                );
                 dataObj = data['data'] as Map<String, dynamic>;
               } else {
-                print('🔍 [ApiManager] Converting data[\'data\'] from Map to Map<String, dynamic>');
+                print(
+                  '🔍 [ApiManager] Converting data[\'data\'] from Map to Map<String, dynamic>',
+                );
                 dataObj = Map<String, dynamic>.from(data['data'] as Map);
               }
               print('🔍 [ApiManager] Data object converted successfully');
@@ -3661,35 +4218,44 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               print('⚠️ [ApiManager] Stack trace: $stackTrace');
               dataObj = <String, dynamic>{};
             }
-            
+
             // ✅ Safely convert status and message to String (handle int types)
             print('🔍 [ApiManager] Step 5: Converting status and message...');
             String statusValue = 'error';
             if (data['status'] != null) {
-              print('🔍 [ApiManager] status type: ${data['status'].runtimeType}, value: ${data['status']}');
+              print(
+                '🔍 [ApiManager] status type: ${data['status'].runtimeType}, value: ${data['status']}',
+              );
               statusValue = data['status'].toString();
               print('🔍 [ApiManager] status converted to: $statusValue');
             }
-            
+
             String? messageValue;
             if (data['message'] != null) {
-              print('🔍 [ApiManager] message type: ${data['message'].runtimeType}, value: ${data['message']}');
+              print(
+                '🔍 [ApiManager] message type: ${data['message'].runtimeType}, value: ${data['message']}',
+              );
               messageValue = data['message'].toString();
               print('🔍 [ApiManager] message converted to: $messageValue');
             }
-            
+
             // ✅ Safely handle transactions list - ensure all items are properly formatted
             print('🔍 [ApiManager] Step 6: Processing transactions list...');
             List<dynamic> transactionsList = [];
-            if (dataObj['transactions'] != null && dataObj['transactions'] is List) {
-              print('🔍 [ApiManager] Found transactions list, count: ${(dataObj['transactions'] as List).length}');
+            if (dataObj['transactions'] != null &&
+                dataObj['transactions'] is List) {
+              print(
+                '🔍 [ApiManager] Found transactions list, count: ${(dataObj['transactions'] as List).length}',
+              );
               transactionsList = dataObj['transactions'] as List;
               print('🔍 [ApiManager] Transactions list extracted');
             } else {
               print('🔍 [ApiManager] No transactions list found or not a List');
-              print('🔍 [ApiManager] dataObj[\'transactions\'] type: ${dataObj['transactions']?.runtimeType}');
+              print(
+                '🔍 [ApiManager] dataObj[\'transactions\'] type: ${dataObj['transactions']?.runtimeType}',
+              );
             }
-            
+
             print('🔍 [ApiManager] Step 7: Building responseData map...');
             responseData = {
               'status': statusValue,
@@ -3697,40 +4263,64 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               'transactions': transactionsList,
             };
             print('🔍 [ApiManager] responseData built successfully');
-            print('🔍 [ApiManager] responseData keys: ${responseData.keys.toList()}');
-            print('🔍 [ApiManager] Transactions count in responseData: ${transactionsList.length}');
+            print(
+              '🔍 [ApiManager] responseData keys: ${responseData.keys.toList()}',
+            );
+            print(
+              '🔍 [ApiManager] Transactions count in responseData: ${transactionsList.length}',
+            );
           } else {
-            print('🔍 [ApiManager] Step 4: No nested data structure, processing root level...');
+            print(
+              '🔍 [ApiManager] Step 4: No nested data structure, processing root level...',
+            );
             // ✅ Handle case where data is at root level - ensure status/message are strings
-            if (responseData['status'] != null && responseData['status'] is! String) {
-              print('🔍 [ApiManager] Converting root level status from ${responseData['status'].runtimeType} to String');
+            if (responseData['status'] != null &&
+                responseData['status'] is! String) {
+              print(
+                '🔍 [ApiManager] Converting root level status from ${responseData['status'].runtimeType} to String',
+              );
               responseData['status'] = responseData['status'].toString();
             }
-            if (responseData['message'] != null && responseData['message'] is! String) {
-              print('🔍 [ApiManager] Converting root level message from ${responseData['message'].runtimeType} to String');
+            if (responseData['message'] != null &&
+                responseData['message'] is! String) {
+              print(
+                '🔍 [ApiManager] Converting root level message from ${responseData['message'].runtimeType} to String',
+              );
               responseData['message'] = responseData['message'].toString();
             }
             print('🔍 [ApiManager] Root level processing complete');
-            print('🔍 [ApiManager] Final responseData keys: ${responseData.keys.toList()}');
+            print(
+              '🔍 [ApiManager] Final responseData keys: ${responseData.keys.toList()}',
+            );
             print('🔍 [ApiManager] Final responseData types:');
             responseData.forEach((key, value) {
               if (value is List) {
-                print('   - $key: ${value.runtimeType} = List(${value.length})');
+                print(
+                  '   - $key: ${value.runtimeType} = List(${value.length})',
+                );
               } else {
                 print('   - $key: ${value.runtimeType} = $value');
               }
             });
           }
-          
-          print('🔍 [ApiManager] Step 8: Calling TransactionHistoryResponse.fromJson...');
+
+          print(
+            '🔍 [ApiManager] Step 8: Calling TransactionHistoryResponse.fromJson...',
+          );
           TransactionHistoryResponse? historyResponse;
           try {
-            print('🔍 [ApiManager] About to parse with TransactionHistoryResponse.fromJson');
+            print(
+              '🔍 [ApiManager] About to parse with TransactionHistoryResponse.fromJson',
+            );
             print('🔍 [ApiManager] responseData being passed: $responseData');
             historyResponse = TransactionHistoryResponse.fromJson(responseData);
-            print('🔍 [ApiManager] TransactionHistoryResponse.fromJson completed successfully');
+            print(
+              '🔍 [ApiManager] TransactionHistoryResponse.fromJson completed successfully',
+            );
           } catch (e, stackTrace) {
-            print('❌ [ApiManager] Error parsing TransactionHistoryResponse: $e');
+            print(
+              '❌ [ApiManager] Error parsing TransactionHistoryResponse: $e',
+            );
             print('❌ [ApiManager] Error type: ${e.runtimeType}');
             print('❌ [ApiManager] Stack trace: $stackTrace');
             print('❌ [ApiManager] Response data that failed: $responseData');
@@ -3743,10 +4333,14 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
           if (historyResponse.status.toLowerCase() == 'success') {
             print('✅ Transaction History Retrieved');
-            print('   - Total Transactions: ${historyResponse.transactions.length}');
+            print(
+              '   - Total Transactions: ${historyResponse.transactions.length}',
+            );
             return historyResponse;
           } else {
-            print('⚠️ API Error: ${historyResponse.message ?? 'Unknown error'}');
+            print(
+              '⚠️ API Error: ${historyResponse.message ?? 'Unknown error'}',
+            );
             return historyResponse; // Return response even on failure
           }
         } catch (e) {
@@ -3765,14 +4359,14 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     }
   }
 
-    static Future<PayoutResponse?> submitPayout({
+  static Future<PayoutResponse?> submitPayout({
     required String userId,
     required String amount,
     required String bankName, // 'Jazz Cash', 'Easy Paisa', 'Bank Transfer'
     required String accountNumber,
   }) async {
     try {
-        final uri = Uri.parse(ApiConstants.transactionHistory);
+      final uri = Uri.parse(ApiConstants.transactionHistory);
       var request = http.MultipartRequest('POST', uri);
 
       // Headers
@@ -3805,7 +4399,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         try {
           // Extract JSON from response that may contain HTML comments
           String cleanResponse = responseBody;
-          
+
           // Remove HTML comments if present
           if (cleanResponse.contains('<!--')) {
             int jsonStart = cleanResponse.indexOf('{');
@@ -3818,11 +4412,11 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             }
           }
-          
+
           cleanResponse = cleanResponse.trim();
-          
+
           print('🧹 Cleaned Response: $cleanResponse');
-          
+
           final data = json.decode(cleanResponse) as Map<String, dynamic>;
           final payoutResponse = PayoutResponse.fromJson(data);
 
@@ -3864,7 +4458,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       var uri = Uri.parse(ApiConstants.getGifts);
-      
+
       // Build query parameters
       Map<String, String> queryParams = {};
       if (category != null && category.isNotEmpty) {
@@ -3898,21 +4492,23 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       if (response.statusCode == 200) {
         try {
           String responseBody = response.body;
-          
+
           // ✅ Fix: Handle concatenated JSON objects from backend
           // Backend sometimes returns multiple JSON objects: {...}{...}
           // Extract the first valid JSON object
           if (responseBody.contains('}{')) {
-            print('⚠️ Detected concatenated JSON objects, extracting first valid JSON...');
+            print(
+              '⚠️ Detected concatenated JSON objects, extracting first valid JSON...',
+            );
             // Find the first complete JSON object
             int firstBrace = responseBody.indexOf('{');
             int lastBrace = responseBody.lastIndexOf('}');
-            
+
             if (firstBrace != -1 && lastBrace != -1) {
               // Try to find where the first JSON object ends
               int braceCount = 0;
               int endIndex = firstBrace;
-              
+
               for (int i = firstBrace; i < responseBody.length; i++) {
                 if (responseBody[i] == '{') {
                   braceCount++;
@@ -3924,16 +4520,18 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
                   }
                 }
               }
-              
+
               if (endIndex > firstBrace) {
                 responseBody = responseBody.substring(firstBrace, endIndex);
-                print('✅ Extracted first JSON object (${responseBody.length} chars)');
+                print(
+                  '✅ Extracted first JSON object (${responseBody.length} chars)',
+                );
               }
             }
           }
-          
+
           final data = json.decode(responseBody) as Map<String, dynamic>;
-          
+
           // ✅ Log raw gift data structure for analysis
           if (data['data'] != null && data['data'] is Map) {
             final dataMap = data['data'] as Map<String, dynamic>;
@@ -3943,7 +4541,9 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               print('   Total gifts in response: ${giftsList.length}');
               for (var i = 0; i < giftsList.length && i < 5; i++) {
                 final gift = giftsList[i] as Map<String, dynamic>;
-                print('   --- Gift ${i + 1} (ID: ${gift['id']}, Name: ${gift['gift_name']}) ---');
+                print(
+                  '   --- Gift ${i + 1} (ID: ${gift['id']}, Name: ${gift['gift_name']}) ---',
+                );
                 print('      gift_image: ${gift['gift_image'] ?? 'null'}');
                 print('      gift_video: ${gift['gift_video'] ?? 'null'}');
                 print('      gift_svg: ${gift['gift_svg'] ?? 'null'}');
@@ -3956,11 +4556,13 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               print('   ====================================');
             }
           }
-          
+
           final giftResponse = GiftResponse.fromJson(data);
 
           if (giftResponse.isSuccess) {
-            print('✅ Gifts Fetched Successfully: ${giftResponse.gifts.length} gifts');
+            print(
+              '✅ Gifts Fetched Successfully: ${giftResponse.gifts.length} gifts',
+            );
             return giftResponse;
           } else {
             print('⚠️ Get Gifts Failed: ${giftResponse.message}');
@@ -3969,7 +4571,9 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         } catch (e) {
           print('❌ JSON Parse Error: $e');
           print('   - Response body length: ${response.body.length}');
-          print('   - Response body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...');
+          print(
+            '   - Response body preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}...',
+          );
           return null;
         }
       } else {
@@ -4009,7 +4613,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       request.fields['gift_price'] = giftPrice.toString();
       request.fields['coin_type'] = coinType.toLowerCase().trim();
       request.fields['category'] = category.toLowerCase().trim();
-      
+
       if (description != null && description.isNotEmpty) {
         request.fields['description'] = description.trim();
       }
@@ -4024,7 +4628,10 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       // Add animation file if provided
       if (animationFile != null && await animationFile.exists()) {
         request.files.add(
-          await http.MultipartFile.fromPath('animation_file', animationFile.path),
+          await http.MultipartFile.fromPath(
+            'animation_file',
+            animationFile.path,
+          ),
         );
       }
 
@@ -4095,12 +4702,12 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       request.fields['receiver_id'] = receiverId.toString();
       request.fields['room_id'] = roomId.toString();
       request.fields['gift_value'] = giftValue.toString();
-      
+
       // Optional: Add gift_id if provided (some APIs might need it)
       if (giftId != null) {
         request.fields['gift_id'] = giftId.toString();
       }
-      
+
       // ✅ Optional: Add sender's seat number to help backend verify sender is seated
       if (senderSeatNumber != null) {
         request.fields['sender_seat_number'] = senderSeatNumber.toString();
@@ -4115,7 +4722,9 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         print('   - Gift ID: ${request.fields['gift_id']}');
       }
       if (senderSeatNumber != null) {
-        print('   - Sender Seat Number: ${request.fields['sender_seat_number']}');
+        print(
+          '   - Sender Seat Number: ${request.fields['sender_seat_number']}',
+        );
       }
       print('   - Full URL: ${uri.toString()}');
 
@@ -4152,22 +4761,28 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     }
   }
 
- static Future<WithdrawalResponse?> requestWithdrawal({
+  static Future<WithdrawalResponse?> requestWithdrawal({
     required int userId,
     required int paymentMethodId,
     required String userAccount,
     double? amount, // Optional amount
   }) async {
     try {
-      final uri = Uri.parse('${ApiConstants.withdrawalSystem}?action=request_withdrawal');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.withdrawalSystem}?action=request_withdrawal',
+      );
+
       print('💳 ========== REQUEST WITHDRAWAL ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST (Multipart Form-Data)');
       print('   📤 Request Fields:');
       print('      - user_id: $userId (type: ${userId.runtimeType})');
-      print('      - payment_method_id: $paymentMethodId (type: ${paymentMethodId.runtimeType})');
-      print('      - user_account: "$userAccount" (type: ${userAccount.runtimeType})');
+      print(
+        '      - payment_method_id: $paymentMethodId (type: ${paymentMethodId.runtimeType})',
+      );
+      print(
+        '      - user_account: "$userAccount" (type: ${userAccount.runtimeType})',
+      );
       if (amount != null && amount > 0) {
         print('      - amount: $amount (type: ${amount.runtimeType})');
       } else {
@@ -4181,7 +4796,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         'payment_method_id': paymentMethodId.toString(),
         'user_account': userAccount,
       });
-      
+
       // Add amount only if provided (optional field)
       if (amount != null && amount > 0) {
         request.fields['amount'] = amount.toString();
@@ -4189,7 +4804,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
 
       http.StreamedResponse streamedResponse = await request.send();
       final responseBody = await streamedResponse.stream.bytesToString();
-      
+
       // Create a Response object from StreamedResponse for compatibility
       final response = http.Response(
         responseBody,
@@ -4207,7 +4822,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         try {
           // Clean response if it contains HTML comments or extra text
           String cleanResponse = response.body.trim();
-          
+
           // Remove HTML comments if present
           if (cleanResponse.contains('<!--')) {
             int jsonStart = cleanResponse.indexOf('{');
@@ -4219,13 +4834,13 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             }
           }
-          
+
           print('   🧹 Cleaned Response: $cleanResponse');
-          
+
           final data = json.decode(cleanResponse) as Map<String, dynamic>;
           print('   📊 Parsed JSON Keys: ${data.keys.toList()}');
           print('   📊 Parsed JSON Values: $data');
-          
+
           final withdrawalResponse = WithdrawalResponse.fromJson(data);
 
           if (withdrawalResponse.isSuccess) {
@@ -4266,12 +4881,16 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   /// No parameters required
   static Future<PaymentMethodsResponse?> getPaymentMethods() async {
     try {
-      final uri = Uri.parse('${ApiConstants.withdrawalSystem}?action=get_payment_methods');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.withdrawalSystem}?action=get_payment_methods',
+      );
+
       print('💳 ========== GET PAYMENT METHODS ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
-      print('   📤 Headers: Content-Type: application/json, Accept: application/json');
+      print(
+        '   📤 Headers: Content-Type: application/json, Accept: application/json',
+      );
       print('   📤 Request Body: None (empty body)');
 
       final response = await http.post(
@@ -4291,7 +4910,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         try {
           // Clean response if it contains HTML comments or extra text
           String cleanResponse = response.body.trim();
-          
+
           // Remove HTML comments if present
           if (cleanResponse.contains('<!--')) {
             int jsonStart = cleanResponse.indexOf('{');
@@ -4303,21 +4922,21 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             }
           }
-          
+
           print('   🧹 Cleaned Response: $cleanResponse');
-          
+
           final data = json.decode(cleanResponse) as Map<String, dynamic>;
           print('   📊 Parsed JSON Keys: ${data.keys.toList()}');
           print('   📊 Status: ${data['status']}');
           print('   📊 Data Type: ${data['data']?.runtimeType}');
-          
+
           // ✅ ENHANCED ERROR LOGGING - Show ALL fields from backend response
           print('   🔍 ========== COMPLETE BACKEND RESPONSE ==========');
           print('   🔍 Full Response JSON: $data');
           data.forEach((key, value) {
             print('      - $key: $value (type: ${value.runtimeType})');
           });
-          
+
           // Check for error_code or any error-related fields
           if (data.containsKey('error_code')) {
             print('   🔴 ERROR CODE FOUND: ${data['error_code']}');
@@ -4329,43 +4948,52 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
             print('   🔴 ERROR FIELD FOUND: ${data['error']}');
           }
           print('   🔍 ========== END COMPLETE RESPONSE ==========');
-          
+
           if (data['data'] is List) {
             print('   📊 Data List Length: ${(data['data'] as List).length}');
             for (int i = 0; i < (data['data'] as List).length; i++) {
               print('      [$i] ${data['data'][i]}');
             }
           }
-          
+
           final methodsResponse = PaymentMethodsResponse.fromJson(data);
 
           if (methodsResponse.isSuccess) {
             print('   ✅ Payment Methods Fetched Successfully');
-            print('   ✅ Total Methods: ${methodsResponse.paymentMethods.length}');
+            print(
+              '   ✅ Total Methods: ${methodsResponse.paymentMethods.length}',
+            );
             for (int i = 0; i < methodsResponse.paymentMethods.length; i++) {
               final method = methodsResponse.paymentMethods[i];
-              print('      [$i] ID: ${method.id}, Name: ${method.name}, Active: ${method.isActive}');
+              print(
+                '      [$i] ID: ${method.id}, Name: ${method.name}, Active: ${method.isActive}',
+              );
             }
             return methodsResponse;
           } else {
             // ✅ ENHANCED ERROR DETAILS
             print('   ❌ ========== BACKEND ERROR DETAILS ==========');
-            print('   ❌ HTTP Status Code: 200 (Request successful, but API returned error)');
+            print(
+              '   ❌ HTTP Status Code: 200 (Request successful, but API returned error)',
+            );
             print('   ❌ Response Status: ${methodsResponse.status}');
-            print('   ❌ Error Message: ${methodsResponse.message ?? 'No message provided'}');
-            
+            print(
+              '   ❌ Error Message: ${methodsResponse.message ?? 'No message provided'}',
+            );
+
             // Check for error code in response
-            final errorCode = data['error_code'] ?? data['code'] ?? data['error'];
+            final errorCode =
+                data['error_code'] ?? data['code'] ?? data['error'];
             if (errorCode != null) {
               print('   ❌ Error Code: $errorCode');
             } else {
               print('   ❌ Error Code: NOT PROVIDED BY BACKEND');
             }
-            
+
             // Show all error-related fields
             print('   ❌ All Response Fields:');
             data.forEach((key, value) {
-              if (key.toLowerCase().contains('error') || 
+              if (key.toLowerCase().contains('error') ||
                   key.toLowerCase().contains('code') ||
                   key.toLowerCase().contains('status') ||
                   key.toLowerCase().contains('message')) {
@@ -4373,7 +5001,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             });
             print('   ❌ ========== END ERROR DETAILS ==========');
-            
+
             print('   ⚠️ Get Payment Methods Failed');
             print('   ⚠️ Status: ${methodsResponse.status}');
             print('   ⚠️ Message: ${methodsResponse.message}');
@@ -4403,16 +5031,20 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   /// Request body: {"user_id": 123}
   static Future<WithdrawalsListResponse?> getUserWithdrawals(int userId) async {
     try {
-      final uri = Uri.parse('${ApiConstants.withdrawalSystem}?action=get_user_withdrawals');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.withdrawalSystem}?action=get_user_withdrawals',
+      );
+
       // Prepare request body exactly as API expects
       final requestBody = {'user_id': userId};
       final requestBodyJson = jsonEncode(requestBody);
-      
+
       print('💳 ========== GET USER WITHDRAWALS ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
-      print('   📤 Headers: Content-Type: application/json, Accept: application/json');
+      print(
+        '   📤 Headers: Content-Type: application/json, Accept: application/json',
+      );
       print('   📤 Request Body (JSON):');
       print('      - user_id: $userId (type: ${userId.runtimeType})');
       print('   📤 Full JSON String: $requestBodyJson');
@@ -4435,7 +5067,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         try {
           // Clean response if it contains HTML comments or extra text
           String cleanResponse = response.body.trim();
-          
+
           // Remove HTML comments if present
           if (cleanResponse.contains('<!--')) {
             int jsonStart = cleanResponse.indexOf('{');
@@ -4447,26 +5079,32 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             }
           }
-          
+
           print('   🧹 Cleaned Response: $cleanResponse');
-          
+
           final data = json.decode(cleanResponse) as Map<String, dynamic>;
           print('   📊 Parsed JSON Keys: ${data.keys.toList()}');
           print('   📊 Status: ${data['status']}');
           print('   📊 Data Type: ${data['data']?.runtimeType}');
-          
+
           if (data['data'] is List) {
-            print('   📊 Withdrawals List Length: ${(data['data'] as List).length}');
+            print(
+              '   📊 Withdrawals List Length: ${(data['data'] as List).length}',
+            );
           }
-          
+
           final withdrawalsResponse = WithdrawalsListResponse.fromJson(data);
 
           if (withdrawalsResponse.isSuccess) {
             print('   ✅ User Withdrawals Fetched Successfully');
-            print('   ✅ Total Withdrawals: ${withdrawalsResponse.withdrawals.length}');
+            print(
+              '   ✅ Total Withdrawals: ${withdrawalsResponse.withdrawals.length}',
+            );
             for (int i = 0; i < withdrawalsResponse.withdrawals.length; i++) {
               final withdrawal = withdrawalsResponse.withdrawals[i];
-              print('      [$i] ID: ${withdrawal.id}, Amount: ${withdrawal.amount}, Status: ${withdrawal.status}');
+              print(
+                '      [$i] ID: ${withdrawal.id}, Amount: ${withdrawal.amount}, Status: ${withdrawal.status}',
+              );
             }
             return withdrawalsResponse;
           } else {
@@ -4498,18 +5136,24 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   /// API expects: GET/POST /withdrawal_system.php?action=get_user_balance
   /// Request body: {"user_id": 123}
   /// Response: {"status": "success", "data": {"diamond_coins": 150.50, "user_name": "John Doe", "username": "johndoe"}}
-  static Future<WithdrawalBalanceResponse?> getWithdrawalUserBalance(int userId) async {
+  static Future<WithdrawalBalanceResponse?> getWithdrawalUserBalance(
+    int userId,
+  ) async {
     try {
-      final uri = Uri.parse('${ApiConstants.withdrawalSystem}?action=get_user_balance');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.withdrawalSystem}?action=get_user_balance',
+      );
+
       // Prepare request body exactly as API expects
       final requestBody = {'user_id': userId};
       final requestBodyJson = jsonEncode(requestBody);
-      
+
       print('💳 ========== GET WITHDRAWAL USER BALANCE ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
-      print('   📤 Headers: Content-Type: application/json, Accept: application/json');
+      print(
+        '   📤 Headers: Content-Type: application/json, Accept: application/json',
+      );
       print('   📤 Request Body (JSON):');
       print('      - user_id: $userId (type: ${userId.runtimeType})');
       print('   📤 Full JSON String: $requestBodyJson');
@@ -4532,7 +5176,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         try {
           // Clean response if it contains HTML comments or extra text
           String cleanResponse = response.body.trim();
-          
+
           // Remove HTML comments if present
           if (cleanResponse.contains('<!--')) {
             int jsonStart = cleanResponse.indexOf('{');
@@ -4544,14 +5188,14 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
               }
             }
           }
-          
+
           print('   🧹 Cleaned Response: $cleanResponse');
-          
+
           final data = json.decode(cleanResponse) as Map<String, dynamic>;
           print('   📊 Parsed JSON Keys: ${data.keys.toList()}');
           print('   📊 Status: ${data['status']}');
           print('   📊 Data Type: ${data['data']?.runtimeType}');
-          
+
           if (data['data'] is Map) {
             final dataMap = data['data'] as Map<String, dynamic>;
             print('   📊 Data Keys: ${dataMap.keys.toList()}');
@@ -4559,13 +5203,15 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
             print('   📊 user_name: ${dataMap['user_name']}');
             print('   📊 username: ${dataMap['username']}');
           }
-          
+
           final balanceResponse = WithdrawalBalanceResponse.fromJson(data);
 
           if (balanceResponse.isSuccess) {
             print('   ✅ User Balance Fetched Successfully');
             if (balanceResponse.balance != null) {
-              print('   ✅ Diamond Coins: ${balanceResponse.balance!.diamondCoins}');
+              print(
+                '   ✅ Diamond Coins: ${balanceResponse.balance!.diamondCoins}',
+              );
               print('   ✅ User Name: ${balanceResponse.balance!.userName}');
               print('   ✅ Username: ${balanceResponse.balance!.username}');
             } else {
@@ -4601,18 +5247,20 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   /// GET /level.php?action=get_user_levels&user_id=123
   static Future<UserLevelModel?> getUserLevels(int userId) async {
     try {
-      final uri = Uri.parse('${ApiConstants.levelApi}?action=get_user_levels&user_id=$userId');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.levelApi}?action=get_user_levels&user_id=$userId',
+      );
+
       print('📊 ========== GET USER LEVELS ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: GET');
       print('   👤 User ID: $userId');
-      
+
       final response = await http.get(uri);
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         // ✅ Strip HTML comments from response body (API sometimes includes <!-- ... -->)
         String cleanBody = response.body;
@@ -4620,33 +5268,42 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
         if (commentStart != -1) {
           cleanBody = cleanBody.substring(0, commentStart).trim();
         }
-        
+
         final jsonData = jsonDecode(cleanBody) as Map<String, dynamic>;
-        
+
         if (jsonData['status'] == 'success' && jsonData['data'] != null) {
           final data = jsonData['data'] as Map<String, dynamic>;
-          
+
           // ✅ Debug: Check what format backend is sending
           final sendingType = data['sending']?.runtimeType.toString() ?? 'null';
-          final receivingType = data['receiving']?.runtimeType.toString() ?? 'null';
-          
+          final receivingType =
+              data['receiving']?.runtimeType.toString() ?? 'null';
+
           final levelModel = UserLevelModel.fromJson(jsonData);
           print('   ✅ User levels retrieved successfully');
           print('   📊 Sending Level: ${levelModel.sending.currentLevel}');
           print('   📊 Receiving Level: ${levelModel.receiving.currentLevel}');
-          print('   📊 Sending Type: $sendingType, Receiving Type: $receivingType');
-          
+          print(
+            '   📊 Sending Type: $sendingType, Receiving Type: $receivingType',
+          );
+
           // ✅ Show full level details if available
           if (levelModel.sending.currentLevel > 0) {
-            print('   📊 Sending Details: Level ${levelModel.sending.currentLevel}, EXP: ${levelModel.sending.currentExp}, Progress: ${levelModel.sending.progressPercentage}%');
+            print(
+              '   📊 Sending Details: Level ${levelModel.sending.currentLevel}, EXP: ${levelModel.sending.currentExp}, Progress: ${levelModel.sending.progressPercentage}%',
+            );
           }
           if (levelModel.receiving.currentLevel > 0) {
-            print('   📊 Receiving Details: Level ${levelModel.receiving.currentLevel}, EXP: ${levelModel.receiving.currentExp}, Progress: ${levelModel.receiving.progressPercentage}%');
+            print(
+              '   📊 Receiving Details: Level ${levelModel.receiving.currentLevel}, EXP: ${levelModel.receiving.currentExp}, Progress: ${levelModel.receiving.progressPercentage}%',
+            );
           }
-          
+
           return levelModel;
         } else {
-          print('   ❌ API returned error or no data: ${jsonData['message'] ?? 'Unknown error'}');
+          print(
+            '   ❌ API returned error or no data: ${jsonData['message'] ?? 'Unknown error'}',
+          );
           return null;
         }
       } else {
@@ -4667,15 +5324,17 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   static Future<Map<String, dynamic>?> getUserTags(int userId) async {
     try {
       final uri = Uri.parse(ApiConstants.getUserTagsApi);
-      
+
       // Prepare request body exactly as API expects
       final requestBody = {'user_id': userId};
       final requestBodyJson = jsonEncode(requestBody);
-      
+
       print('🏷️ ========== GET USER TAGS ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
-      print('   📤 Headers: Content-Type: application/json, Accept: application/json');
+      print(
+        '   📤 Headers: Content-Type: application/json, Accept: application/json',
+      );
       print('   📤 Request Body (JSON):');
       print('      - user_id: $userId (type: ${userId.runtimeType})');
       print('   📤 Full JSON String: $requestBodyJson');
@@ -4697,19 +5356,21 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       if (response.statusCode == 200) {
         try {
           final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-          
+
           if (jsonData['status'] == 'success' && jsonData['data'] != null) {
             final data = jsonData['data'] as Map<String, dynamic>;
             final tags = data['tags'] as List<dynamic>? ?? [];
-            
+
             print('   ✅ User tags retrieved successfully');
             print('   🏷️ User ID: ${data['user_id']}');
             print('   🏷️ Tags: $tags');
             print('   🏷️ Tags Count: ${tags.length}');
-            
+
             return jsonData;
           } else {
-            print('   ⚠️ API returned error or no data: ${jsonData['message'] ?? 'Unknown error'}');
+            print(
+              '   ⚠️ API returned error or no data: ${jsonData['message'] ?? 'Unknown error'}',
+            );
             return null;
           }
         } catch (e, stackTrace) {
@@ -4742,7 +5403,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.levelApi);
-      
+
       print('🎁 ========== ADD GIFT EXP ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
@@ -4750,7 +5411,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       print('   👤 Receiver ID: $receiverId');
       print('   💰 Gift Price: $giftPrice');
       print('   🍀 Is Lucky Gift: $isLuckyGift');
-      
+
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -4762,10 +5423,10 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
           'is_lucky_gift': isLuckyGift.toString(),
         },
       );
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
         return jsonData;
@@ -4834,16 +5495,16 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   static Future<Map<String, dynamic>?> getLevelConfig() async {
     try {
       final uri = Uri.parse('${ApiConstants.levelApi}?action=get_level_config');
-      
+
       print('⚙️ ========== GET LEVEL CONFIG ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: GET');
-      
+
       final response = await http.get(uri);
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
         return jsonData;
@@ -4865,19 +5526,21 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     int limit = 10,
   }) async {
     try {
-      final uri = Uri.parse('${ApiConstants.levelApi}?action=get_top_users&type=$type&limit=$limit');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.levelApi}?action=get_top_users&type=$type&limit=$limit',
+      );
+
       print('🏆 ========== GET TOP USERS ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: GET');
       print('   📊 Type: $type');
       print('   📊 Limit: $limit');
-      
+
       final response = await http.get(uri);
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
         return jsonData;
@@ -4899,22 +5562,24 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     int offset = 0,
   }) async {
     try {
-      final uri = Uri.parse('${ApiConstants.getAllAgenciesApi}?limit=$limit&offset=$offset');
-      
+      final uri = Uri.parse(
+        '${ApiConstants.getAllAgenciesApi}?limit=$limit&offset=$offset',
+      );
+
       print('🏢 ========== GET ALL AGENCIES (HTTP API) ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: GET');
       print('   📊 Limit: $limit');
       print('   📊 Offset: $offset');
-      
+
       final response = await http.get(uri);
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-        
+
         // Check if response has success status
         if (jsonData['status'] == 'success') {
           print('   ✅ Successfully loaded agencies');
@@ -4947,7 +5612,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.agencyManagerApi);
-      
+
       print('🏢 ========== AGENCY MANAGER API ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
@@ -4957,35 +5622,37 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       print('   📊 Agency Name: $agencyName');
       print('   📊 Member User ID: $memberUserId');
       print('   📊 Limit: $limit, Offset: $offset');
-      
+
       // Build request body
-      final body = <String, String>{
-        'action': action,
-      };
-      
+      final body = <String, String>{'action': action};
+
       if (agencyId != null) body['agency_id'] = agencyId.toString();
       if (userId != null) body['user_id'] = userId.toString();
-      if (agencyName != null && agencyName.isNotEmpty) body['agency_name'] = agencyName;
-      if (memberUserId != null) body['member_user_id'] = memberUserId.toString();
+      if (agencyName != null && agencyName.isNotEmpty)
+        body['agency_name'] = agencyName;
+      if (memberUserId != null)
+        body['member_user_id'] = memberUserId.toString();
       if (action == 'get_all' || action == 'get_all_users') {
         body['limit'] = limit.toString();
         body['offset'] = offset.toString();
       }
-      
+
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body,
       );
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-        
+
         if (jsonData['status'] == 'success') {
-          print('   ✅ Success: ${jsonData['message'] ?? "Operation successful"}');
+          print(
+            '   ✅ Success: ${jsonData['message'] ?? "Operation successful"}',
+          );
           return jsonData;
         } else {
           print('   ❌ API Error: ${jsonData['message'] ?? "Unknown error"}');
@@ -5003,7 +5670,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }
 
   // Convenience methods for specific agency operations
-  
+
   /// Create agency
   static Future<Map<String, dynamic>?> createAgency({
     required int userId,
@@ -5035,21 +5702,14 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     required int agencyId,
     required int userId,
   }) async {
-    return agencyManager(
-      action: 'delete',
-      agencyId: agencyId,
-      userId: userId,
-    );
+    return agencyManager(action: 'delete', agencyId: agencyId, userId: userId);
   }
 
   /// Get specific agency
   static Future<Map<String, dynamic>?> getAgency({
     required int agencyId,
   }) async {
-    return agencyManager(
-      action: 'get',
-      agencyId: agencyId,
-    );
+    return agencyManager(action: 'get', agencyId: agencyId);
   }
 
   /// Get all agencies (using agency_manager.php)
@@ -5057,11 +5717,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     int limit = 50,
     int offset = 0,
   }) async {
-    return agencyManager(
-      action: 'get_all',
-      limit: limit,
-      offset: offset,
-    );
+    return agencyManager(action: 'get_all', limit: limit, offset: offset);
   }
 
   /// Add member to agency
@@ -5096,10 +5752,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   static Future<Map<String, dynamic>?> getAgencyMembers({
     required int agencyId,
   }) async {
-    return agencyManager(
-      action: 'get_members',
-      agencyId: agencyId,
-    );
+    return agencyManager(action: 'get_members', agencyId: agencyId);
   }
 
   /// Get all users
@@ -5107,28 +5760,19 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     int limit = 100,
     int offset = 0,
   }) async {
-    return agencyManager(
-      action: 'get_all_users',
-      limit: limit,
-      offset: offset,
-    );
+    return agencyManager(action: 'get_all_users', limit: limit, offset: offset);
   }
 
   /// Get specific user
   static Future<Map<String, dynamic>?> getUserViaAgencyManager({
     required int userId,
   }) async {
-    return agencyManager(
-      action: 'get_user',
-      userId: userId,
-    );
+    return agencyManager(action: 'get_user', userId: userId);
   }
 
   /// Get agency statistics
   static Future<Map<String, dynamic>?> getAgencyStats() async {
-    return agencyManager(
-      action: 'get_stats',
-    );
+    return agencyManager(action: 'get_stats');
   }
 
   // ========== AGENCY REQUESTS API ==========
@@ -5143,7 +5787,7 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.agencyRequestsApi);
-      
+
       print('📋 ========== AGENCY REQUESTS API ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
@@ -5151,30 +5795,30 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
       print('   📊 User ID: $userId');
       print('   📊 Agency ID: $agencyId');
       print('   📊 Request ID: $requestId');
-      
+
       // Build request body
-      final body = <String, String>{
-        'action': action,
-      };
-      
+      final body = <String, String>{'action': action};
+
       if (userId != null) body['user_id'] = userId.toString();
       if (agencyId != null) body['agency_id'] = agencyId.toString();
       if (requestId != null) body['request_id'] = requestId.toString();
-      
+
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: body,
       );
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
-        
+
         if (jsonData['status'] == 'success') {
-          print('   ✅ Success: ${jsonData['message'] ?? "Operation successful"}');
+          print(
+            '   ✅ Success: ${jsonData['message'] ?? "Operation successful"}',
+          );
           return jsonData;
         } else {
           print('   ❌ API Error: ${jsonData['message'] ?? "Unknown error"}');
@@ -5296,23 +5940,25 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   static Future<MallResponse?> getMallData() async {
     try {
       final uri = Uri.parse(ApiConstants.mallApi);
-      
+
       print('🛒 ========== MALL API ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: GET');
-      
+
       final response = await http.get(uri);
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         try {
           final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
           final mallResponse = MallResponse.fromJson(jsonData);
-          
+
           if (mallResponse.isSuccess) {
-            print('   ✅ Success: ${mallResponse.categories.length} categories, ${mallResponse.itemsByCategory.length} category groups');
+            print(
+              '   ✅ Success: ${mallResponse.categories.length} categories, ${mallResponse.itemsByCategory.length} category groups',
+            );
             return mallResponse;
           } else {
             print('   ❌ API Error: ${mallResponse.message}');
@@ -5343,38 +5989,38 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   }) async {
     try {
       final uri = Uri.parse(ApiConstants.purchaseItemApi);
-      
+
       print('💰 ========== PURCHASE ITEM API ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
       print('   📊 User ID: $userId');
       print('   📊 Item ID: $itemId');
       print('   📊 Days: $days');
-      
+
       final body = jsonEncode({
         'user_id': userId,
         'item_id': itemId,
         'days': days,
       });
-      
+
       final response = await http.post(
         uri,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         try {
           final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
           final purchaseResponse = PurchaseResponse.fromJson(jsonData);
-          
+
           if (purchaseResponse.isSuccess) {
-            print('   ✅ Purchase successful! New balance: ${purchaseResponse.newBalance}');
+            print(
+              '   ✅ Purchase successful! New balance: ${purchaseResponse.newBalance}',
+            );
             return purchaseResponse;
           } else {
             print('   ❌ Purchase failed: ${purchaseResponse.message}');
@@ -5398,48 +6044,37 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
   /// Get user's backpack items
   /// API: get_backpack.php
   /// Payload: { "user_id": 15 }
-  static Future<BackpackResponse?> getBackpack({
-    required int userId,
-  }) async {
+  static Future<BackpackResponse?> getBackpack({required int userId}) async {
     try {
       if (userId == 0) {
         print('🎒 [ApiManager] getBackpack skipped: user_id 0 is invalid');
         return null;
       }
       final uri = Uri.parse(ApiConstants.getBackpackApi);
-      
+
       print('🎒 ========== GET BACKPACK API ==========');
       print('   📍 Endpoint: ${uri.toString()}');
       print('   📤 Request Method: POST');
       print('   📊 User ID: $userId');
-      
-      final body = jsonEncode({
-        'user_id': userId,
-      });
-      
+
+      final body = jsonEncode({'user_id': userId});
+
       final response = await http.post(
         uri,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      
+
       print('   📥 Response Status: ${response.statusCode}');
       print('   📥 Response Body: ${response.body}');
-   
 
-      
       if (response.statusCode == 200) {
         try {
           final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
 
           final backpackResponse = BackpackResponse.fromJson(jsonData);
-         
-         
+
           if (backpackResponse.isSuccess) {
-               
-           
             return backpackResponse;
           } else {
             print('   ❌ API Error: ${backpackResponse.message}');
@@ -5493,22 +6128,22 @@ static const String _baseUrl =      '${ApiConstants.baseUrl}Room_Seats_Managemen
     if (startDate != null) queryParams["start_date"] = startDate;
     if (endDate != null) queryParams["end_date"] = endDate;
 
-    final uri = Uri.parse("https://shaheenstar.online/gift_transactions_report.php").replace(queryParameters: queryParams);
- 
+    final uri = Uri.parse(
+      "https://shaheenstar.online/gift_transactions_report.php",
+    ).replace(queryParameters: queryParams);
+
     print("🎯 API URL: $uri");
 
     final response = await http.get(uri);
-    
-print(response.statusCode);
-print(response);
-print(response.body);
+
+    print(response.statusCode);
+    print(response);
+    print(response.body);
     if (response.statusCode == 200) {
       final jsonData = json.decode(response.body);
       print(jsonData["data"]["transactions"]);
       return GiftTransactionsResponse1.fromJson(jsonData);
-    } 
-    
-    else {
+    } else {
       throw Exception("❌ Failed to load gift transactions");
     }
   }
@@ -5516,102 +6151,105 @@ print(response.body);
   // ================= FETCH ROOM STATS =================
 
   static Future<RoomGiftResponse> fetchRoomStats({
-  int page = 1,
-  int limit = 50,
-  int? senderId,
-  int? receiverId,
-  int? giftId,
-  int? roomId,
-  String? coinType,
-  String? startDate,
-  String? endDate,
-  String sortBy = "gift_price",
-  String sortOrder = "DESC",
-}) async {
-  final queryParams = {
-    "page": page.toString(),
-    "limit": limit.toString(),
-    "sort_by": sortBy,
-    "sort_order": sortOrder,
-  };
+    int page = 1,
+    int limit = 50,
+    int? senderId,
+    int? receiverId,
+    int? giftId,
+    int? roomId,
+    String? coinType,
+    String? startDate,
+    String? endDate,
+    String sortBy = "gift_price",
+    String sortOrder = "DESC",
+  }) async {
+    final queryParams = {
+      "page": page.toString(),
+      "limit": limit.toString(),
+      "sort_by": sortBy,
+      "sort_order": sortOrder,
+    };
 
-  if (senderId != null) queryParams["sender_id"] = senderId.toString();
-  if (receiverId != null) queryParams["receiver_id"] = receiverId.toString();
-  if (roomId != null) queryParams["room_id"] = roomId.toString();
-  if (giftId != null) queryParams["gift_id"] = giftId.toString();
-  if (startDate != null) queryParams["start_date"] = startDate;
-  if (endDate != null) queryParams["end_date"] = endDate;
-  if (coinType != null) queryParams["coin_type"] = coinType;
+    if (senderId != null) queryParams["sender_id"] = senderId.toString();
+    if (receiverId != null) queryParams["receiver_id"] = receiverId.toString();
+    if (roomId != null) queryParams["room_id"] = roomId.toString();
+    if (giftId != null) queryParams["gift_id"] = giftId.toString();
+    if (startDate != null) queryParams["start_date"] = startDate;
+    if (endDate != null) queryParams["end_date"] = endDate;
+    if (coinType != null) queryParams["coin_type"] = coinType;
 
-  final uri = Uri.parse("https://shaheenstar.online/gift_102.php").replace(queryParameters: queryParams);
+    final uri = Uri.parse(
+      "https://shaheenstar.online/gift_102.php",
+    ).replace(queryParameters: queryParams);
 
-  print("🎯 Room Stats API URL: $uri");
+    print("🎯 Room Stats API URL: $uri");
 
-  final response = await http.get(uri);
-  print("🔹 Status: ${response.statusCode}");
+    final response = await http.get(uri);
+    print("🔹 Status: ${response.statusCode}");
 
-  if (response.statusCode == 200) {
-    final jsonData = json.decode(response.body);
-    return RoomGiftResponse.fromJson(jsonData);
-  } else {
-    throw Exception("❌ Failed to load room stats: ${response.statusCode}");
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      return RoomGiftResponse.fromJson(jsonData);
+    } else {
+      throw Exception("❌ Failed to load room stats: ${response.statusCode}");
+    }
   }
-}
-
 
   // ================= FETCH CpUser  STATS =================
 
   static Future<CpUserResponse> fetchCpUser() async {
+    final uri = Uri.parse("https://shaheenstar.online/get_cp_wall.php");
 
-  final uri = Uri.parse("https://shaheenstar.online/get_cp_wall.php");
+    print("🎯 Cp Stats API URL: $uri");
 
-  print("🎯 Cp Stats API URL: $uri");
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${ApiConstants.bearertoken}',
+      },
+    );
 
-  final response = await http.get(uri, headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${ApiConstants.bearertoken}',
-        },);
+    print("🔹 Status: ${response.statusCode}");
 
-
-  print("🔹 Status: ${response.statusCode}");
-
-  if (response.statusCode == 200) {
-    final jsonData = json.decode(response.body);
-    return CpUserResponse.fromJson(jsonData);
-  } else {
-    throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      return CpUserResponse.fromJson(jsonData);
+    } else {
+      throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
+    }
   }
-}
-
-
 
   // ================= FETCH CpRanking User  STATS =================
 
   static Future<CpUserResponse> fetchCpRankingUser() async {
+    final uri = Uri.parse("https://shaheenstar.online/get_cp_ranking_live.php");
 
-  final uri = Uri.parse("https://shaheenstar.online/get_cp_ranking_live.php");
+    print("🎯 Cp Stats API URL: $uri");
 
-  print("🎯 Cp Stats API URL: $uri");
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${ApiConstants.bearertoken}',
+      },
+    );
 
-  final response = await http.get(uri, headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${ApiConstants.bearertoken}',
-        },);
+    print("🔹 Status: ${response.statusCode}");
 
-
-  print("🔹 Status: ${response.statusCode}");
-
-  if (response.statusCode == 200) {
-    final jsonData = json.decode(response.body);
-    return CpUserResponse.fromJson(jsonData);
-  } else {
-    throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      return CpUserResponse.fromJson(jsonData);
+    } else {
+      throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
+    }
   }
-}
 
-static Future<bool> removeSelfFromCp(String userId) async {
+  static Future<bool> removeSelfFromCp(String userId) async {
     try {
-      final uri = Uri.parse("https://shaheenstar.online/remove_self_from_cp.php");
+      final uri = Uri.parse(
+        "https://shaheenstar.online/remove_self_from_cp.php",
+      );
 
       print("📤 Removing self from CP API");
       print("📤 Endpoint: $uri");
@@ -5644,7 +6282,9 @@ static Future<bool> removeSelfFromCp(String userId) async {
           print("✅ Successfully removed user from CP");
           return true;
         } else {
-          print("⚠️ Failed to remove user: ${decoded['message'] ?? 'Unknown error'}");
+          print(
+            "⚠️ Failed to remove user: ${decoded['message'] ?? 'Unknown error'}",
+          );
           return false;
         }
       } else {
@@ -5657,120 +6297,123 @@ static Future<bool> removeSelfFromCp(String userId) async {
     }
   }
 
-
   // ================= FETCH CpRanking User  STATS =================
 
   static Future<CpUserResponse> fetchCpRankingUserById(String userId) async {
+    final uri = Uri.parse(
+      "https://shaheenstar.online/get_cp_ranking_live.php?user_id=$userId",
+    );
 
-  final uri = Uri.parse("https://shaheenstar.online/get_cp_ranking_live.php?user_id=$userId");
+    print("🎯 Cp Stats API URL: $uri");
 
-  print("🎯 Cp Stats API URL: $uri");
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${ApiConstants.bearertoken}',
+      },
+    );
 
-  final response = await http.get(uri, headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${ApiConstants.bearertoken}',
-        },);
+    print("🔹 Status: ${response.statusCode}");
 
-
-  print("🔹 Status: ${response.statusCode}");
-
-  if (response.statusCode == 200) {
-    final jsonData = json.decode(response.body);
-    return CpUserResponse.fromJson(jsonData);
-  } else {
-    throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
-  }
-}
-
-// Remove CP partner (Postman: POST formdata user_id, Bearer auth)
-static Future<Map<String, dynamic>> removeCpPartner(String userId) async {
-  final uri = Uri.parse("${ApiConstants.baseUrl}remove_self_from_cp.php");
-
-  print("🎯 Remove CP Partner API: POST $uri");
-  print("🔹 User ID: $userId");
-
-  final response = await http.post(
-    uri,
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Bearer ${ApiConstants.bearertoken}',
-    },
-    body: 'user_id=${Uri.encodeQueryComponent(userId)}',
-  );
-
-  print("🔹 Status: ${response.statusCode}");
-  print("🔹 Response: ${response.body}");
-
-  if (response.statusCode == 200) {
-    final jsonData = json.decode(response.body);
-    if (jsonData is! Map) throw Exception('Invalid response format');
-    final map = Map<String, dynamic>.from(jsonData as Map);
-    if (map['status'] == 'success') {
-      return map;
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      return CpUserResponse.fromJson(jsonData);
     } else {
-      throw Exception(map['message']?.toString() ?? 'Failed to remove CP partner');
+      throw Exception("❌ Failed to load cp stats: ${response.statusCode}");
     }
-  } else {
-    throw Exception("❌ Failed to remove CP partner: ${response.statusCode}");
   }
-}
 
-//   static Future<RoomGiftResponse> fetchRoomStats({
-//       int page = 1,
-//     int limit = 50,
-//     int? senderId,
-//     int? receiverId,
-//     int? giftId,
-//     int? roomId,
-//     String? coinType,
-//     String? startDate,
-//     String? endDate,
-//     String sortBy = "gift_price",
-//     String sortOrder = "DESC",
-//     String? status,
-//     bool? isPrivate,
-//     String? timePeriod, // all, weekly, monthly
-//     String? filter,
-//   }) async {
-//     final queryParams = {
-//       "page": page.toString(),
-//       "limit": limit.toString(),
-//       "sort_by": sortBy ,
-//       "sort_order": sortOrder,
+  // Remove CP partner (Postman: POST formdata user_id, Bearer auth)
+  static Future<Map<String, dynamic>> removeCpPartner(String userId) async {
+    final uri = Uri.parse("${ApiConstants.baseUrl}remove_self_from_cp.php");
 
-//     };
+    print("🎯 Remove CP Partner API: POST $uri");
+    print("🔹 User ID: $userId");
 
-//     if (senderId != null) queryParams["sender_id"] = senderId.toString();
-//     if (receiverId != null) queryParams["receiver_id"] = receiverId.toString();
-//     if (roomId != null) queryParams["room_id"] = roomId.toString();
-//     if (status != null) queryParams["status"] = status;
-//     if (isPrivate != null) queryParams["is_private"] = isPrivate.toString();
-//     if (timePeriod != null) queryParams["time_period"] = timePeriod;
-//     if (startDate != null) queryParams["start_date"] = startDate;
-//     if (endDate != null) queryParams["end_date"] = endDate;
-//    if (coinType != null) queryParams["coin_type"] = coinType;
-   
-//        final uri = Uri.parse("https://shaheenstar.online/gift_102.php").replace(queryParameters: queryParams);
- 
-//     print("🎯 Room Stats API URL: $uri");
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Bearer ${ApiConstants.bearertoken}',
+      },
+      body: 'user_id=${Uri.encodeQueryComponent(userId)}',
+    );
 
-//     final response = await http.get(uri);
-//     print("~~~~~~~~~~~~~~~~~~~~~~~");
-// print(response.statusCode);
-// print(response.body);
-//     if (response.statusCode == 200) {
-//       final jsonData = json.decode(response.body);
-//       print("✅ Room Stats API Response: ${jsonData.toString().substring(0, jsonData.toString().length > 200 ? 200 : jsonData.toString().length)}");
-//       return RoomGiftResponse.fromJson(jsonData);
-//     } else {
-//       throw Exception("❌ Failed to load room stats: ${response.statusCode}");
-//     }
-//   }
+    print("🔹 Status: ${response.statusCode}");
+    print("🔹 Response: ${response.body}");
 
+    if (response.statusCode == 200) {
+      final jsonData = json.decode(response.body);
+      if (jsonData is! Map) throw Exception('Invalid response format');
+      final map = Map<String, dynamic>.from(jsonData as Map);
+      if (map['status'] == 'success') {
+        return map;
+      } else {
+        throw Exception(
+          map['message']?.toString() ?? 'Failed to remove CP partner',
+        );
+      }
+    } else {
+      throw Exception("❌ Failed to remove CP partner: ${response.statusCode}");
+    }
+  }
 
-// ================= FETCH ROOM TOTAL COINS =================
+  //   static Future<RoomGiftResponse> fetchRoomStats({
+  //       int page = 1,
+  //     int limit = 50,
+  //     int? senderId,
+  //     int? receiverId,
+  //     int? giftId,
+  //     int? roomId,
+  //     String? coinType,
+  //     String? startDate,
+  //     String? endDate,
+  //     String sortBy = "gift_price",
+  //     String sortOrder = "DESC",
+  //     String? status,
+  //     bool? isPrivate,
+  //     String? timePeriod, // all, weekly, monthly
+  //     String? filter,
+  //   }) async {
+  //     final queryParams = {
+  //       "page": page.toString(),
+  //       "limit": limit.toString(),
+  //       "sort_by": sortBy ,
+  //       "sort_order": sortOrder,
+
+  //     };
+
+  //     if (senderId != null) queryParams["sender_id"] = senderId.toString();
+  //     if (receiverId != null) queryParams["receiver_id"] = receiverId.toString();
+  //     if (roomId != null) queryParams["room_id"] = roomId.toString();
+  //     if (status != null) queryParams["status"] = status;
+  //     if (isPrivate != null) queryParams["is_private"] = isPrivate.toString();
+  //     if (timePeriod != null) queryParams["time_period"] = timePeriod;
+  //     if (startDate != null) queryParams["start_date"] = startDate;
+  //     if (endDate != null) queryParams["end_date"] = endDate;
+  //    if (coinType != null) queryParams["coin_type"] = coinType;
+
+  //        final uri = Uri.parse("https://shaheenstar.online/gift_102.php").replace(queryParameters: queryParams);
+
+  //     print("🎯 Room Stats API URL: $uri");
+
+  //     final response = await http.get(uri);
+  //     print("~~~~~~~~~~~~~~~~~~~~~~~");
+  // print(response.statusCode);
+  // print(response.body);
+  //     if (response.statusCode == 200) {
+  //       final jsonData = json.decode(response.body);
+  //       print("✅ Room Stats API Response: ${jsonData.toString().substring(0, jsonData.toString().length > 200 ? 200 : jsonData.toString().length)}");
+  //       return RoomGiftResponse.fromJson(jsonData);
+  //     } else {
+  //       throw Exception("❌ Failed to load room stats: ${response.statusCode}");
+  //     }
+  //   }
+
+  // ================= FETCH ROOM TOTAL COINS =================
   /// Fetch total coins sent in a room
-  /// 
+  ///
   /// Returns Map with room summary including total_sent_value
   /// Uses ApiService for consistent error handling and retry logic
   static Future<Map<String, dynamic>?> fetchTotalCoins({
@@ -5778,19 +6421,18 @@ static Future<Map<String, dynamic>> removeCpPartner(String userId) async {
   }) async {
     try {
       print('💰 [ApiManager] Fetching total coins for room: $roomId');
-      
+
       final response = await ApiService.get<Map<String, dynamic>>(
         url: ApiConstants.fetchTotalCoinsApi,
-        queryParameters: {
-          'room_id': roomId,
-          'sort_by': 'total_sent_value',
-        },
+        queryParameters: {'room_id': roomId, 'sort_by': 'total_sent_value'},
         headers: ApiService.getCommonHeaders(includeAuth: false),
         parser: (json) => json, // Return raw JSON
       );
 
       if (!response.isSuccess) {
-        print('❌ [ApiManager] Failed to fetch total coins: ${response.errorMessage}');
+        print(
+          '❌ [ApiManager] Failed to fetch total coins: ${response.errorMessage}',
+        );
         return null;
       }
 
@@ -5815,5 +6457,3 @@ static Future<Map<String, dynamic>> removeCpPartner(String userId) async {
     }
   }
 }
-
-

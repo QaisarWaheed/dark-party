@@ -23,33 +23,44 @@ import '../../../model/store_model.dart';
 import '../../../utils/country_utils.dart';
 import '../profile/detailed_profile_screen.dart';
 
-
-
 class RoomBottomSheetContent extends StatefulWidget {
   final dynamic profileProvider;
-  final String? databaseId,currentDatabaseUserId,userId,userName,profileUrl,roomId;
+  final String? databaseId,
+      currentDatabaseUserId,
+      userId,
+      userName,
+      profileUrl,
+      roomId;
   final bool? isCurrentUser;
 
-   const RoomBottomSheetContent({super.key,this.profileProvider,this.databaseId,this.currentDatabaseUserId,this.userId,this.userName,this.isCurrentUser,this.profileUrl,this.roomId});
+  const RoomBottomSheetContent({
+    super.key,
+    this.profileProvider,
+    this.databaseId,
+    this.currentDatabaseUserId,
+    this.userId,
+    this.userName,
+    this.isCurrentUser,
+    this.profileUrl,
+    this.roomId,
+  });
 
   @override
-  State<RoomBottomSheetContent> createState() =>
-      RoomBottomSheetContentState();
+  State<RoomBottomSheetContent> createState() => RoomBottomSheetContentState();
 }
 
 class RoomBottomSheetContentState extends State<RoomBottomSheetContent>
     with TickerProviderStateMixin {
-      
-   String displayName ="";
-   String displayUserId ="";
-   String currentDatabaseUserId="";
-   bool isCurrentUser=false;
-     Seat? _selectedSeatForGift;
-     String? userCountry="";
-            SVGAAnimationController? _animationRoomHeadwearController;
-    String? _currentRoomHeadwearAnimUrl;
+  String displayName = "";
+  String displayUserId = "";
+  String currentDatabaseUserId = "";
+  bool isCurrentUser = false;
+  Seat? _selectedSeatForGift;
+  String? userCountry = "";
+  SVGAAnimationController? _animationRoomHeadwearController;
+  String? _currentRoomHeadwearAnimUrl;
   bool _isRoomHeadwearAnimationVisible = false;
-    bool _isRoomHeadwearDisposed = false;
+  bool _isRoomHeadwearDisposed = false;
 
   int _selectedTopTab = 0; // 0: Contribut, 1: Charm
   int _selectedPeriod = 0; // 0: Daily, 1: Weekly, 2: Monthly
@@ -57,33 +68,29 @@ class RoomBottomSheetContentState extends State<RoomBottomSheetContent>
   String? _statsError;
   User? _statsUser;
 
-@override
-void initState() {
-  super.initState();
-   
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    setState(() {
-      
+  @override
+  void initState() {
+    super.initState();
 
-     currentDatabaseUserId = widget.databaseId!;
-    isCurrentUser = widget.userId == currentDatabaseUserId.toString();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      setState(() {
+        currentDatabaseUserId = widget.databaseId!;
+        isCurrentUser = widget.userId == currentDatabaseUserId.toString();
 
-    print("👤 ===== SHOW PROFILE BOTTOM SHEET =====");
-    print("👤 User Name: ${widget.userName}");
-    print("👤 User ID: ${widget.userId}");
-    print("👤 Current User ID: ${widget.currentDatabaseUserId}");
-    print("👤 Is Current User: ${widget.isCurrentUser}");
-    print("👤 Profile URL: ${widget.profileUrl}");
+        print("👤 ===== SHOW PROFILE BOTTOM SHEET =====");
+        print("👤 User Name: ${widget.userName}");
+        print("👤 User ID: ${widget.userId}");
+        print("👤 Current User ID: ${widget.currentDatabaseUserId}");
+        print("👤 Is Current User: ${widget.isCurrentUser}");
+        print("👤 Profile URL: ${widget.profileUrl}");
 
-    // ✅ Handle null values
-    displayName = widget.userName ?? 'Unknown User';
-    displayUserId = widget.userId ?? 'Unknown ID';
-        });
-setState(() {
-  
-
-      
-        userCountry = widget.profileProvider.country; // Directly updated country
+        // ✅ Handle null values
+        displayName = widget.userName ?? 'Unknown User';
+        displayUserId = widget.userId ?? 'Unknown ID';
+      });
+      setState(() {
+        userCountry =
+            widget.profileProvider.country; // Directly updated country
 
         print("🎯 ========== BOTTOM SHEET BUILDER ==========");
         print("🎯 Profile Provider Country: '$userCountry'");
@@ -99,34 +106,36 @@ setState(() {
             );
           }
         });
-});
+      });
 
-   print('🎬 [ProfileWithFrame] ========== INIT STATE ==========');
-    print('🎬 [ProfileWithFrame] Size: 70');
-    print('🎬 [ProfileWithFrame] Profile URL: ${widget.profileUrl}');
-    print('🎬 [ProfileWithFrame] User ID: ${widget.userId}');
-    print('🎬 [ProfileWithFrame] =================================');
-    // Load backpack items and find active SVGA frames
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('🎯 [BottomSheet] Fetching CP data for user: ${widget.userId}');
-      if (widget.userId != null && widget.userId!.isNotEmpty) {
-        // ✅ Fetch CP data using CpProvider instead of ProfileUpdateProvider
-        final cpProvider = Provider.of<CpProvider>(context, listen: false);
-        cpProvider.fetchCpRankingByUserId(widget.userId!);
-        print('🎯 [BottomSheet] fetchCpRankingByUserId called successfully');
-      } else {
-        print('❌ [BottomSheet] User ID is null or empty, skipping CP data fetch');
-      }
-      print('🎬 [ProfileWithFrame] PostFrameCallback - Starting to load frame...');
-      _loadActiveFrame();
+      print('🎬 [ProfileWithFrame] ========== INIT STATE ==========');
+      print('🎬 [ProfileWithFrame] Size: 70');
+      print('🎬 [ProfileWithFrame] Profile URL: ${widget.profileUrl}');
+      print('🎬 [ProfileWithFrame] User ID: ${widget.userId}');
+      print('🎬 [ProfileWithFrame] =================================');
+      // Load backpack items and find active SVGA frames
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🎯 [BottomSheet] Fetching CP data for user: ${widget.userId}');
+        if (widget.userId != null && widget.userId!.isNotEmpty) {
+          // ✅ Fetch CP data using CpProvider instead of ProfileUpdateProvider
+          final cpProvider = Provider.of<CpProvider>(context, listen: false);
+          cpProvider.fetchCpRankingByUserId(widget.userId!);
+          print('🎯 [BottomSheet] fetchCpRankingByUserId called successfully');
+        } else {
+          print(
+            '❌ [BottomSheet] User ID is null or empty, skipping CP data fetch',
+          );
+        }
+        print(
+          '🎬 [ProfileWithFrame] PostFrameCallback - Starting to load frame...',
+        );
+        _loadActiveFrame();
 
-      // ✅ Fetch contribution/charm stats for sender profile
-      _fetchContributionStats();
-
-      
+        // ✅ Fetch contribution/charm stats for sender profile
+        _fetchContributionStats();
+      });
     });
-  });
-}
+  }
 
   Map<String, String> _getDateRange(int periodIndex) {
     final now = DateTime.now();
@@ -143,11 +152,7 @@ setState(() {
           "end": formatter.format(now),
         };
       case 2: // Monthly
-        final startOfMonth = DateTime(
-          now.year,
-          now.month - 1,
-          now.day,
-        );
+        final startOfMonth = DateTime(now.year, now.month - 1, now.day);
         return {
           "start": formatter.format(startOfMonth),
           "end": formatter.format(now),
@@ -219,19 +224,20 @@ setState(() {
     }
   }
 
-
   Future<void> _loadActiveFrame() async {
-    if (!mounted ||_isRoomHeadwearDisposed) {
-      print('⚠️ [ProfileWithFrame] Widget disposed or not mounted, skipping frame load');
+    if (!mounted || _isRoomHeadwearDisposed) {
+      print(
+        '⚠️ [ProfileWithFrame] Widget disposed or not mounted, skipping frame load',
+      );
       return;
     }
 
     print('📦 [ProfileWithFrame] ========== LOADING ACTIVE FRAME ==========');
     print('📦 [ProfileWithFrame] User ID: ${widget.userId}');
-    
+
     try {
       List<BackpackItem> activeItems = [];
-      
+
       // ✅ If userId is provided and valid (not 0), load that user's backpack
       final uid = widget.userId?.trim();
       if (uid != null && uid.isNotEmpty && uid != '0') {
@@ -241,29 +247,52 @@ setState(() {
           final response = await ApiManager.getBackpack(userId: userIdInt);
 
           if (response != null && response.isSuccess) {
-            print('📦 [ProfileWithFrame] Backpack response: ${response.totalItems} total, ${response.activeItems} active');
+            print(
+              '📦 [ProfileWithFrame] Backpack response: ${response.totalItems} total, ${response.activeItems} active',
+            );
             activeItems = response.items
-                .where((item) => item.isActive && item.svgaUrl != null && item.svgaUrl!.isNotEmpty)
+                .where(
+                  (item) =>
+                      item.isActive &&
+                      item.svgaUrl != null &&
+                      item.svgaUrl!.isNotEmpty,
+                )
                 .toList();
-            print('✅ [ProfileWithFrame] Found ${activeItems.length} active items with SVGA for user $userIdInt');
+            print(
+              '✅ [ProfileWithFrame] Found ${activeItems.length} active items with SVGA for user $userIdInt',
+            );
             for (var item in activeItems) {
-              print('   - Item: ${item.itemName}, Category: ${item.itemCategory}, SVGA: ${item.svgaUrl}');
+              print(
+                '   - Item: ${item.itemName}, Category: ${item.itemCategory}, SVGA: ${item.svgaUrl}',
+              );
             }
           } else {
-            print('❌ [ProfileWithFrame] Failed to load backpack for user $userIdInt: ${response?.message}');
+            print(
+              '❌ [ProfileWithFrame] Failed to load backpack for user $userIdInt: ${response?.message}',
+            );
           }
         } else {
-          print('❌ [ProfileWithFrame] Invalid user ID format: ${widget.userId}');
+          print(
+            '❌ [ProfileWithFrame] Invalid user ID format: ${widget.userId}',
+          );
         }
       } else {
         // ✅ Otherwise, use current user's backpack from StoreProvider
-        print('📦 [ProfileWithFrame] Loading current user\'s backpack from StoreProvider');
-        final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-        
+        print(
+          '📦 [ProfileWithFrame] Loading current user\'s backpack from StoreProvider',
+        );
+        final storeProvider = Provider.of<StoreProvider>(
+          context,
+          listen: false,
+        );
+
         // Load backpack if not already loaded
-        if (storeProvider.backpackItems.isEmpty && !storeProvider.isLoadingBackpack) {
+        if (storeProvider.backpackItems.isEmpty &&
+            !storeProvider.isLoadingBackpack) {
           print('📦 [ProfileWithFrame] Backpack empty, loading...');
-          final uidForStore = (uid == null || uid.isEmpty || uid == '0') ? null : uid;
+          final uidForStore = (uid == null || uid.isEmpty || uid == '0')
+              ? null
+              : uid;
           await storeProvider.loadBackpack(uidForStore);
           // Wait a bit for the state to update
           await Future.delayed(const Duration(milliseconds: 100));
@@ -273,18 +302,16 @@ setState(() {
         activeItems = storeProvider.activeBackpackItems
             .where((item) => item.svgaUrl != null && item.svgaUrl!.isNotEmpty)
             .toList();
-        print('✅ [ProfileWithFrame] Found ${activeItems.length} active items with SVGA from StoreProvider');
+        print(
+          '✅ [ProfileWithFrame] Found ${activeItems.length} active items with SVGA from StoreProvider',
+        );
       }
-
-      
-
 
       if (activeItems.isEmpty) {
         print('📦 [ProfileWithFrame] No active items with SVGA frames');
         if (mounted) {
           setState(() {
-        
-             _isRoomHeadwearAnimationVisible = false;
+            _isRoomHeadwearAnimationVisible = false;
           });
         }
         return;
@@ -292,72 +319,72 @@ setState(() {
 
       // Use the first active item's SVGA (prioritize headwear, then others)
       // You can customize this logic to prioritize certain categories
-   
+
       var roomHeadWearActiveItem = activeItems.first;
 
+      // Try to find room headwear first
+      final roomHeadwear = activeItems
+          .where((item) => item.itemCategory.toLowerCase() == 'room_headwear')
+          .toList();
 
-        // Try to find room headwear first
-      final roomHeadwear = activeItems.where((item) => 
-        
-        item.itemCategory.toLowerCase() == 'room_headwear'
-      ).toList();
-
-   
       if (roomHeadwear.isEmpty) {
-         print('📦 [ProfileWithFrame] No headwaer items with SVGA frames');
+        print('📦 [ProfileWithFrame] No headwaer items with SVGA frames');
         if (mounted) {
           setState(() {
-        
-             _isRoomHeadwearAnimationVisible = false;
+            _isRoomHeadwearAnimationVisible = false;
           });
         }
         return;
-       
-      }else{
- roomHeadWearActiveItem = roomHeadwear.first;
+      } else {
+        roomHeadWearActiveItem = roomHeadwear.first;
       }
-      
-   
-         String? roomHeadwearRawUrl = roomHeadWearActiveItem.svgaUrl;
 
-    
+      String? roomHeadwearRawUrl = roomHeadWearActiveItem.svgaUrl;
 
-         // Normalize room headwear URL if needed
-      if (roomHeadwearRawUrl != null && roomHeadwearRawUrl.contains('api.shaheenapp.com')) {
-        _currentRoomHeadwearAnimUrl = roomHeadwearRawUrl.replaceAll('api.shaheenapp.com', 'shaheenstar.online');
-      } else if (roomHeadwearRawUrl != null && roomHeadwearRawUrl.contains('your-domain.com')) {
-        _currentRoomHeadwearAnimUrl = roomHeadwearRawUrl.replaceAll('your-domain.com', 'shaheenstar.online');
+      // Normalize room headwear URL if needed
+      if (roomHeadwearRawUrl != null &&
+          roomHeadwearRawUrl.contains('api.shaheenapp.com')) {
+        _currentRoomHeadwearAnimUrl = roomHeadwearRawUrl.replaceAll(
+          'api.shaheenapp.com',
+          'shaheenstar.online',
+        );
+      } else if (roomHeadwearRawUrl != null &&
+          roomHeadwearRawUrl.contains('your-domain.com')) {
+        _currentRoomHeadwearAnimUrl = roomHeadwearRawUrl.replaceAll(
+          'your-domain.com',
+          'shaheenstar.online',
+        );
       } else {
         _currentRoomHeadwearAnimUrl = roomHeadwearRawUrl;
       }
 
-     // ✅ Preload SVGA in background
-if (_currentRoomHeadwearAnimUrl != null) {
-  SvgaCacheManager.load(_currentRoomHeadwearAnimUrl!);
-}
-      if (_currentRoomHeadwearAnimUrl == null || _currentRoomHeadwearAnimUrl!.isEmpty) {
+      // ✅ Preload SVGA in background
+      if (_currentRoomHeadwearAnimUrl != null) {
+        SvgaCacheManager.load(_currentRoomHeadwearAnimUrl!);
+      }
+      if (_currentRoomHeadwearAnimUrl == null ||
+          _currentRoomHeadwearAnimUrl!.isEmpty) {
         return;
       }
 
+      print(
+        '🎬 [ProfileWithFrame] Loading SVGA frame: $_currentRoomHeadwearAnimUrl',
+      );
 
-        print('🎬 [ProfileWithFrame] Loading SVGA frame: $_currentRoomHeadwearAnimUrl');
-      
-    
-       // Initialize room headwear animation controller
-      _animationRoomHeadwearController = SVGAAnimationController(vsync: this,);
-      
+      // Initialize room headwear animation controller
+      _animationRoomHeadwearController = SVGAAnimationController(vsync: this);
+
       if (mounted) {
         setState(() {});
       }
 
       // Load SVGA animation
-    
-       await _loadAndStartRoomHeadwearAnimation();
+
+      await _loadAndStartRoomHeadwearAnimation();
     } catch (e) {
       print('❌ [ProfileWithFrame] Error loading frame: $e');
     }
   }
-
 
   //  Future<void> _loadAndStartRoomHeadwearAnimation() async {
   //   if (_currentRoomHeadwearAnimUrl == null || _currentRoomHeadwearAnimUrl!.isEmpty || _isRoomHeadwearDisposed) {
@@ -366,10 +393,10 @@ if (_currentRoomHeadwearAnimUrl != null) {
 
   //   try {
   //     print('📥 [ProfileWithFrame] Loading animation from: $_currentRoomHeadwearAnimUrl');
-      
+
   //     final animUrl = _currentRoomHeadwearAnimUrl!.toLowerCase();
-  //     final isSvga = animUrl.endsWith('.svga') || 
-  //                    animUrl.contains('.svga?') || 
+  //     final isSvga = animUrl.endsWith('.svga') ||
+  //                    animUrl.contains('.svga?') ||
   //                    animUrl.contains('.svga&') ||
   //                    (animUrl.contains('svga') && !animUrl.contains('.svg') && !animUrl.endsWith('.svg'));
 
@@ -379,7 +406,7 @@ if (_currentRoomHeadwearAnimUrl != null) {
   //     }
 
   //     final videoItem = await SVGAParser.shared.decodeFromURL(_currentRoomHeadwearAnimUrl!);
-      
+
   //     if (_isRoomHeadwearDisposed || !mounted || _animationRoomHeadwearController == null) {
   //       return;
   //     }
@@ -389,12 +416,11 @@ if (_currentRoomHeadwearAnimUrl != null) {
 
   //     if (mounted && !_isRoomHeadwearDisposed) {
   //       // Start playing animation in loop FIRST
- 
+
   //       _animationRoomHeadwearController!.repeat();
 
-    
   //       print('🎬 [ProfileWithFrame] Animation repeat() called');
-        
+
   //       // Then update state to show the frame
   //       setState(() {
   //         _isRoomHeadwearAnimationVisible = true;
@@ -404,7 +430,7 @@ if (_currentRoomHeadwearAnimUrl != null) {
   //   } catch (e, stackTrace) {
   //     print('❌ [ProfileWithFrame] Error loading animation: $e');
   //     print('❌ [ProfileWithFrame] Stack trace: $stackTrace');
-      
+
   //     if (mounted && !_isRoomHeadwearDisposed) {
   //       setState(() {
   //         _isRoomHeadwearAnimationVisible = false;
@@ -412,50 +438,47 @@ if (_currentRoomHeadwearAnimUrl != null) {
   //     }
   //   }
   //   setState(() {
-      
+
   //   });
   // }
-Future<void> _loadAndStartRoomHeadwearAnimation() async {
-  if (_currentRoomHeadwearAnimUrl == null ||
-      _currentRoomHeadwearAnimUrl!.isEmpty ||
-      _isRoomHeadwearDisposed ||
-      _animationRoomHeadwearController == null) {
-    return;
-  }
-
-  try {
-    print('📥 Loading (cached) SVGA: $_currentRoomHeadwearAnimUrl');
-
-    final movie = await SvgaCacheManager.load(_currentRoomHeadwearAnimUrl!);
-    if (movie == null || !mounted || _isRoomHeadwearDisposed) {
+  Future<void> _loadAndStartRoomHeadwearAnimation() async {
+    if (_currentRoomHeadwearAnimUrl == null ||
+        _currentRoomHeadwearAnimUrl!.isEmpty ||
+        _isRoomHeadwearDisposed ||
+        _animationRoomHeadwearController == null) {
       return;
     }
-    
-    _animationRoomHeadwearController!.videoItem = movie;
-    _animationRoomHeadwearController!.repeat();
 
-    setState(() {
-      _isRoomHeadwearAnimationVisible = true;
-    });
+    try {
+      print('📥 Loading (cached) SVGA: $_currentRoomHeadwearAnimUrl');
 
-    print('✅ SVGA Loaded & Playing');
+      final movie = await SvgaCacheManager.load(_currentRoomHeadwearAnimUrl!);
+      if (movie == null || !mounted || _isRoomHeadwearDisposed) {
+        return;
+      }
 
-  } catch (e, stack) {
-    print('❌ Error decoding SVGA: $e');
-    print(stack);
+      _animationRoomHeadwearController!.videoItem = movie;
+      _animationRoomHeadwearController!.repeat();
 
-    if (mounted) {
       setState(() {
-        _isRoomHeadwearAnimationVisible = false;
+        _isRoomHeadwearAnimationVisible = true;
       });
+
+      print('✅ SVGA Loaded & Playing');
+    } catch (e, stack) {
+      print('❌ Error decoding SVGA: $e');
+      print(stack);
+
+      if (mounted) {
+        setState(() {
+          _isRoomHeadwearAnimationVisible = false;
+        });
+      }
     }
   }
-}
-
 
   @override
   void dispose() {
-
     _isRoomHeadwearDisposed = true;
 
     _animationRoomHeadwearController?.dispose();
@@ -483,7 +506,9 @@ Future<void> _loadAndStartRoomHeadwearAnimation() async {
     if (profileUrl.startsWith('uploads/') ||
         profileUrl.startsWith('images/') ||
         profileUrl.startsWith('profiles/')) {
-      String cleanPath = profileUrl.startsWith('/') ? profileUrl.substring(1) : profileUrl;
+      String cleanPath = profileUrl.startsWith('/')
+          ? profileUrl.substring(1)
+          : profileUrl;
       return 'https://shaheenstar.online/$cleanPath';
     }
 
@@ -540,441 +565,566 @@ Future<void> _loadAndStartRoomHeadwearAnimation() async {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     // ✅ Check if user is CP user from CpProvider
     return Consumer<CpProvider>(
       builder: (context, cpProvider, _) {
-        final isCpUser = cpProvider.users.isNotEmpty && cpProvider.users[0].cpUser != null;
-        
+        final isCpUser =
+            cpProvider.users.isNotEmpty && cpProvider.users[0].cpUser != null;
+
         print('🔍 [Build] isCpUser: $isCpUser');
         print('🔍 [Build] cpProvider.users.length: ${cpProvider.users.length}');
-        
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.78,
-      decoration: const BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          // ✅ CP User: Use gradient background image, Normal User: White background
-          color: isCpUser ? Colors.transparent : Colors.white,
-          image: isCpUser
-              ? const DecorationImage(
-                  image: AssetImage('assets/images/cp_profile_background.png'),
-                  fit: BoxFit.cover,
-                )
-              : null,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
+
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.78,
+          decoration: const BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
           ),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.black12,
-                borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              // ✅ CP User: Use gradient background image, Normal User: White background
+              color: isCpUser ? Colors.transparent : Colors.white,
+              image: isCpUser
+                  ? const DecorationImage(
+                      image: AssetImage(
+                        'assets/images/cp_profile_background.png',
+                      ),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
               ),
             ),
-            const SizedBox(height: 150),
-            // ✅ Profile Picture Section - Different layout for CP users
-            isCpUser
-                ? Consumer<CpProvider>(
-                    builder: (context, cpProvider, _) {
-                      final hasCp = cpProvider.users.isNotEmpty && cpProvider.users[0].cpUser != null;
-                      final cpPartner = hasCp ? cpProvider.users[0].cpUser : null;
-                      
-                      print('🔍 [BottomSheet] CP Data Debug:');
-                      print('   cpProvider.users.length: ${cpProvider.users.length}');
-                      print('   hasCp: $hasCp');
-                      if (hasCp) {
-                        print('   CP Partner: ${cpPartner!.name}');
-                        print('   CP Partner Profile: ${cpPartner.profileUrl}');
-                      }
-                      
-                      return Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                const SizedBox(height: 150),
+                // ✅ Profile Picture Section - Different layout for CP users
+                isCpUser
+                    ? Consumer<CpProvider>(
+                        builder: (context, cpProvider, _) {
+                          final hasCp =
+                              cpProvider.users.isNotEmpty &&
+                              cpProvider.users[0].cpUser != null;
+                          final cpPartner = hasCp
+                              ? cpProvider.users[0].cpUser
+                              : null;
+
+                          print('🔍 [BottomSheet] CP Data Debug:');
+                          print(
+                            '   cpProvider.users.length: ${cpProvider.users.length}',
+                          );
+                          print('   hasCp: $hasCp');
+                          if (hasCp) {
+                            print('   CP Partner: ${cpPartner!.name}');
+                            print(
+                              '   CP Partner Profile: ${cpPartner.profileUrl}',
+                            );
+                          }
+
+                          return Column(
                             children: [
-                          // Left Profile Picture
-                          GestureDetector(
-                            onTap: () async {
-                              Navigator.pop(context);
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => DetailedProfileScreen(
-                                    userId: widget.userId,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: CircleAvatar(
-                              radius: 48,
-                              backgroundColor: Colors.white,
-                              child: ClipOval(
-                                child: Builder(builder: (context) {
-                                  final normalized = _normalizeProfileUrl(widget.profileUrl);
-                                  if (normalized == null || normalized.isEmpty) {
-                                    return AppImage.asset(
-                                      'assets/images/person.png',
-                                      width: 88,
-                                      height: 88,
-                                      fit: BoxFit.cover,
-                                    );
-                                  }
-
-                                  if (normalized.startsWith('http')) {
-                                    return CachedNetworkImage(
-                                      imageUrl: normalized,
-                                      width: 88,
-                                      height: 88,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        width: 88,
-                                        height: 88,
-                                        color: Colors.grey[200],
-                                      ),
-                                      errorWidget: (context, url, error) => AppImage.asset(
-                                        'assets/images/person.png',
-                                        width: 88,
-                                        height: 88,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    );
-                                  }
-
-                                  return Image.file(
-                                    File(normalized),
-                                    width: 88,
-                                    height: 88,
-                                    fit: BoxFit.cover,
-                                  );
-                                }),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Icon Between Users
-                          AppImage.asset(
-                            'assets/icons/icon_between_users.png',
-                            width: 56,
-                            height: 56,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(width: 12),
-                          // Right Profile Picture (CP Partner)
-                          GestureDetector(
-                            onTap: () async {
-                              if (hasCp && cpPartner != null) {
-                                final partnerId = cpPartner.id.toString();
-                                Navigator.pop(context);
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => DetailedProfileScreen(
-                                      userId: partnerId,
-                                      screen: 'cp',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            child: CircleAvatar(
-                              radius: 48,
-                              backgroundColor: Colors.white,
-                              child: ClipOval(
-                                child: Builder(
-                                  builder: (context) {
-                                    if (!hasCp || cpPartner == null) {
-                                      return AppImage.asset(
-                                        'assets/images/person.png',
-                                        width: 88,
-                                        height: 88,
-                                        fit: BoxFit.cover,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Left Profile Picture
+                                  GestureDetector(
+                                    onTap: () async {
+                                      Navigator.pop(context);
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => DetailedProfileScreen(
+                                            userId: widget.userId,
+                                          ),
+                                        ),
                                       );
-                                    }
-                                    
-                                    final partnerProfile = cpPartner.profileUrl;
-                                    print('🔍 [BottomSheet] Partner Profile URL: $partnerProfile');
-                                    
-                                    final normalized = cpProvider.normalizeRoomProfileUrl(partnerProfile);
-                                    print('🔍 [BottomSheet] Normalized URL: $normalized');
-                                    
-                                    if (normalized == 'assets/images/person.png') {
-                                      return AppImage.asset(
-                                        'assets/images/person.png',
-                                        width: 88,
-                                        height: 88,
-                                        fit: BoxFit.cover,
-                                      );
-                                    }
+                                    },
+                                    child: CircleAvatar(
+                                      radius: 48,
+                                      backgroundColor: Colors.white,
+                                      child: ClipOval(
+                                        child: Builder(
+                                          builder: (context) {
+                                            final normalized =
+                                                _normalizeProfileUrl(
+                                                  widget.profileUrl,
+                                                );
+                                            if (normalized == null ||
+                                                normalized.isEmpty) {
+                                              return AppImage.asset(
+                                                'assets/images/person.png',
+                                                width: 88,
+                                                height: 88,
+                                                fit: BoxFit.cover,
+                                              );
+                                            }
 
-                                    return CachedNetworkImage(
-                                      imageUrl: normalized,
-                                      width: 88,
-                                      height: 88,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        width: 88,
-                                        height: 88,
-                                        color: Colors.grey[200],
-                                        child: const Center(
-                                          child: CircularProgressIndicator(),
+                                            if (normalized.startsWith('http')) {
+                                              return CachedNetworkImage(
+                                                imageUrl: normalized,
+                                                width: 88,
+                                                height: 88,
+                                                fit: BoxFit.cover,
+                                                placeholder: (context, url) =>
+                                                    Container(
+                                                      width: 88,
+                                                      height: 88,
+                                                      color: Colors.grey[200],
+                                                    ),
+                                                errorWidget:
+                                                    (
+                                                      context,
+                                                      url,
+                                                      error,
+                                                    ) => AppImage.asset(
+                                                      'assets/images/person.png',
+                                                      width: 88,
+                                                      height: 88,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                              );
+                                            }
+
+                                            return Image.file(
+                                              File(normalized),
+                                              width: 88,
+                                              height: 88,
+                                              fit: BoxFit.cover,
+                                            );
+                                          },
                                         ),
                                       ),
-                                      errorWidget: (context, url, error) {
-                                        print('❌ [BottomSheet] Error loading partner image: $error');
-                                        return AppImage.asset(
-                                          'assets/images/person.png',
-                                          width: 88,
-                                          height: 88,
-                                          fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Icon Between Users
+                                  AppImage.asset(
+                                    'assets/icons/icon_between_users.png',
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.contain,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Right Profile Picture (CP Partner)
+                                  GestureDetector(
+                                    onTap: () async {
+                                      if (hasCp && cpPartner != null) {
+                                        final partnerId = cpPartner.id
+                                            .toString();
+                                        Navigator.pop(context);
+                                        await Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                DetailedProfileScreen(
+                                                  userId: partnerId,
+                                                  screen: 'cp',
+                                                ),
+                                          ),
                                         );
-                                      },
-                                    );
-                                  },
-                                ),
+                                      }
+                                    },
+                                    child: CircleAvatar(
+                                      radius: 48,
+                                      backgroundColor: Colors.white,
+                                      child: ClipOval(
+                                        child: Builder(
+                                          builder: (context) {
+                                            if (!hasCp || cpPartner == null) {
+                                              return AppImage.asset(
+                                                'assets/images/person.png',
+                                                width: 88,
+                                                height: 88,
+                                                fit: BoxFit.cover,
+                                              );
+                                            }
+
+                                            final partnerProfile =
+                                                cpPartner.profileUrl;
+                                            print(
+                                              '🔍 [BottomSheet] Partner Profile URL: $partnerProfile',
+                                            );
+
+                                            final normalized = cpProvider
+                                                .normalizeRoomProfileUrl(
+                                                  partnerProfile,
+                                                );
+                                            print(
+                                              '🔍 [BottomSheet] Normalized URL: $normalized',
+                                            );
+
+                                            if (normalized ==
+                                                'assets/images/person.png') {
+                                              return AppImage.asset(
+                                                'assets/images/person.png',
+                                                width: 88,
+                                                height: 88,
+                                                fit: BoxFit.cover,
+                                              );
+                                            }
+
+                                            return CachedNetworkImage(
+                                              imageUrl: normalized,
+                                              width: 88,
+                                              height: 88,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) =>
+                                                  Container(
+                                                    width: 88,
+                                                    height: 88,
+                                                    color: Colors.grey[200],
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  ),
+                                              errorWidget: (context, url, error) {
+                                                print(
+                                                  '❌ [BottomSheet] Error loading partner image: $error',
+                                                );
+                                                return AppImage.asset(
+                                                  'assets/images/person.png',
+                                                  width: 88,
+                                                  height: 88,
+                                                  fit: BoxFit.cover,
+                                                );
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    : GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DetailedProfileScreen(userId: widget.userId),
+                            ),
+                          );
+                        },
+                        child: ClipOval(
+                          child: Builder(
+                            builder: (context) {
+                              final normalized = _normalizeProfileUrl(
+                                widget.profileUrl,
+                              );
+                              if (normalized == null || normalized.isEmpty) {
+                                return AppImage.asset(
+                                  'assets/images/person.png',
+                                  width: 84,
+                                  height: 84,
+                                  fit: BoxFit.cover,
+                                );
+                              }
+
+                              if (normalized.startsWith('http')) {
+                                return CachedNetworkImage(
+                                  imageUrl: normalized,
+                                  width: 84,
+                                  height: 84,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    width: 84,
+                                    height: 84,
+                                    color: Colors.grey[200],
+                                  ),
+                                  errorWidget: (context, url, error) =>
+                                      AppImage.asset(
+                                        'assets/images/person.png',
+                                        width: 84,
+                                        height: 84,
+                                        fit: BoxFit.cover,
+                                      ),
+                                );
+                              }
+
+                              return Image.file(
+                                File(normalized),
+                                width: 84,
+                                height: 84,
+                                fit: BoxFit.cover,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                DetailedProfileScreen(userId: widget.userId),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.mic, size: 16, color: Colors.black54),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.cake, size: 16, color: Colors.black54),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4FA0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Q 21',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CountryUtils.getCountryFlag(
+                      userCountry,
+                      width: 18,
+                      height: 12,
+                    ),
+                    const SizedBox(width: 6),
+                    Consumer<ProfileUpdateProvider>(
+                      builder: (context, provider, _) {
+                        final tags = provider.tags;
+                        final leftTag = tags.isNotEmpty ? tags.first : null;
+                        final rightTag = tags.length > 1 ? tags[1] : null;
+
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (leftTag != null) ...[
+                              _buildTagBadge(leftTag.toString()),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              'ID: $displayUserId',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black54,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              )
-                : GestureDetector(
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => DetailedProfileScreen(
-                            userId: widget.userId,
-                          ),
-                        ),
-                      );
-                    },
-                    child: ClipOval(
-                      child: Builder(builder: (context) {
-                        final normalized = _normalizeProfileUrl(widget.profileUrl);
-                        if (normalized == null || normalized.isEmpty) {
-                          return AppImage.asset(
-                            'assets/images/person.png',
-                            width: 84,
-                            height: 84,
-                            fit: BoxFit.cover,
-                          );
-                        }
-
-                        if (normalized.startsWith('http')) {
-                          return CachedNetworkImage(
-                            imageUrl: normalized,
-                            width: 84,
-                            height: 84,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              width: 84,
-                              height: 84,
-                              color: Colors.grey[200],
-                            ),
-                            errorWidget: (context, url, error) => AppImage.asset(
-                              'assets/images/person.png',
-                              width: 84,
-                              height: 84,
-                              fit: BoxFit.cover,
-                            ),
-                          );
-                        }
-
-                        return Image.file(
-                          File(normalized),
-                          width: 84,
-                          height: 84,
-                          fit: BoxFit.cover,
+                            if (rightTag != null) ...[
+                              const SizedBox(width: 6),
+                              _buildTagBadge(rightTag.toString()),
+                            ],
+                          ],
                         );
-                      }),
+                      },
                     ),
-                  ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DetailedProfileScreen(
-                          userId: widget.userId,
-                        ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: displayUserId),
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('ID copied'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Icon(
+                        Icons.copy,
+                        size: 14,
+                        color: Colors.black45,
                       ),
-                    );
-                  },
-                  child: Text(
-                    displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black,
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                const Icon(Icons.mic, size: 16, color: Colors.black54),
-                const SizedBox(width: 6),
-                const Icon(Icons.cake, size: 16, color: Colors.black54),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF4FA0),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'Q 21',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CountryUtils.getCountryFlag(
-                  userCountry,
-                  width: 18,
-                  height: 12,
-                ),
-                const SizedBox(width: 6),
+                // Wealth Level Badge
                 Consumer<ProfileUpdateProvider>(
                   builder: (context, provider, _) {
-                    final tags = provider.tags;
-                    final leftTag = tags.isNotEmpty ? tags.first : null;
-                    final rightTag = tags.length > 1 ? tags[1] : null;
+                    if (provider.wealthLevel == null)
+                      return const SizedBox.shrink();
 
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (leftTag != null) ...[
-                          _buildTagBadge(leftTag.toString()),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          'ID: $displayUserId',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Transform.translate(
+                        offset: const Offset(0, 0),
+                        child: Container(
+                          height: 65,
+                          width: 140,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Image.asset(
+                                provider.wealthLevel! <= 20
+                                    ? 'assets/images/level_1-to-20.png'
+                                    : provider.wealthLevel! <= 50
+                                    ? 'assets/images/level_21-to-50.png'
+                                    : 'assets/images/level_51-to-100.png',
+                                width: 140,
+                                height: 65,
+                                fit: BoxFit.fill,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      "Lvl.${provider.wealthLevel}",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              // Level Number Text
+                              Positioned(
+                                right: 25,
+                                child: Text(
+                                  'Lv.${provider.wealthLevel}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    shadows: [
+                                      Shadow(
+                                        offset: Offset(0, 1),
+                                        blurRadius: 2,
+                                        color: Colors.black54,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        if (rightTag != null) ...[
-                          const SizedBox(width: 6),
-                          _buildTagBadge(rightTag.toString()),
-                        ],
-                      ],
+                      ),
                     );
                   },
                 ),
-                const SizedBox(width: 6),
-                GestureDetector(
-                  onTap: () async {
-                    await Clipboard.setData(
-                      ClipboardData(text: displayUserId),
-                    );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('ID copied'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                  child: const Icon(Icons.copy, size: 14, color: Colors.black45),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F1F1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.emoji_events, size: 16, color: Colors.grey),
+                      SizedBox(width: 6),
+                      Text('0', style: TextStyle(color: Colors.black54)),
+                      SizedBox(width: 10),
+                      Icon(Icons.shield, size: 16, color: Colors.grey),
+                      SizedBox(width: 6),
+                      Text('0', style: TextStyle(color: Colors.black54)),
+                    ],
+                  ),
                 ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Consumer<UserFollowProvider>(
+                        builder: (context, followProvider, _) {
+                          final targetUserId = int.tryParse(
+                            widget.userId ?? '',
+                          );
+                          if (targetUserId == null || isCurrentUser) {
+                            return const SizedBox(width: 90);
+                          }
+
+                          return FollowButton(
+                            targetUserId: targetUserId,
+                            initialIsFollowing: followProvider.isFollowing(
+                              targetUserId,
+                            ),
+                            width: 90,
+                            height: 32,
+                            fontSize: 11,
+                          );
+                        },
+                      ),
+                      _buildProfileActionAsset(
+                        assetPath:
+                            'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_2.png',
+                        label: '@',
+                      ),
+                      _buildProfileActionAsset(
+                        assetPath:
+                            'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_3.png',
+                        label: 'Say hi',
+                      ),
+                      _buildProfileActionAsset(
+                        assetPath:
+                            'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_4.png',
+                        label: 'Gift',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F1F1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.emoji_events, size: 16, color: Colors.grey),
-                  SizedBox(width: 6),
-                  Text('0', style: TextStyle(color: Colors.black54)),
-                  SizedBox(width: 10),
-                  Icon(Icons.shield, size: 16, color: Colors.grey),
-                  SizedBox(width: 6),
-                  Text('0', style: TextStyle(color: Colors.black54)),
-                ],
-              ),
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Consumer<UserFollowProvider>(
-                    builder: (context, followProvider, _) {
-                      final targetUserId = int.tryParse(widget.userId ?? '');
-                      if (targetUserId == null || isCurrentUser) {
-                        return const SizedBox(width: 90);
-                      }
-
-                      return FollowButton(
-                        targetUserId: targetUserId,
-                        initialIsFollowing:
-                            followProvider.isFollowing(targetUserId),
-                        width: 90,
-                        height: 32,
-                        fontSize: 11,
-                      );
-                    },
-                  ),
-                  _buildProfileActionAsset(
-                    assetPath:
-                        'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_2.png',
-                    label: '@',
-                  ),
-                  _buildProfileActionAsset(
-                    assetPath:
-                        'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_3.png',
-                    label: 'Say hi',
-                  ),
-                  _buildProfileActionAsset(
-                    assetPath:
-                        'assets/icons/Screenshot_2026-01-27_123551-removebg-preview_4.png',
-                    label: 'Gift',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
       },
     ); // Consumer<CpProvider>
   }
@@ -994,19 +1144,13 @@ Future<void> _loadAndStartRoomHeadwearAnimation() async {
           ),
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: AppImage.asset(
-              assetPath,
-              fit: BoxFit.contain,
-            ),
+            child: AppImage.asset(assetPath, fit: BoxFit.contain),
           ),
         ),
         const SizedBox(height: 6),
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.black54,
-          ),
+          style: const TextStyle(fontSize: 11, color: Colors.black54),
         ),
       ],
     );
@@ -1054,7 +1198,9 @@ Future<void> _loadAndStartRoomHeadwearAnimation() async {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFD54F) : Colors.black.withOpacity(0.35),
+          color: isSelected
+              ? const Color(0xFFFFD54F)
+              : Colors.black.withOpacity(0.35),
           borderRadius: BorderRadius.circular(14),
           border: isSelected
               ? null
@@ -1071,6 +1217,4 @@ Future<void> _loadAndStartRoomHeadwearAnimation() async {
       ),
     );
   }
-
-  
 }

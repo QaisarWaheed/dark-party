@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shaheen_star_app/controller/provider/agency_provider.dart';
@@ -73,17 +74,29 @@ class _FirebaseInitWrapperState extends State<_FirebaseInitWrapper> {
     for (int attempt = 1; attempt <= 3 && !_initialized; attempt++) {
       try {
         if (Firebase.apps.isEmpty) {
-          if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && attempt == 1) {
+          if (!kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.android &&
+              attempt == 1) {
             await Firebase.initializeApp();
           } else {
-            await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+            await Firebase.initializeApp(
+              options: DefaultFirebaseOptions.currentPlatform,
+            );
           }
         }
-        if (mounted) setState(() { _initialized = true; _error = null; });
+        if (mounted)
+          setState(() {
+            _initialized = true;
+            _error = null;
+          });
         return;
       } catch (e) {
-        if (mounted) setState(() { _error = e.toString(); });
-        if (attempt < 3) await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted)
+          setState(() {
+            _error = e.toString();
+          });
+        if (attempt < 3)
+          await Future.delayed(const Duration(milliseconds: 300));
       }
     }
   }
@@ -110,13 +123,20 @@ class _FirebaseInitWrapperState extends State<_FirebaseInitWrapper> {
                   width: 160,
                   height: 160,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.image_not_supported,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              Text('Starting...', style: TextStyle(color: Colors.grey.shade600)),
+              Text(
+                'Starting...',
+                style: TextStyle(color: Colors.grey.shade600),
+              ),
             ],
           ),
         ),
@@ -159,9 +179,7 @@ class MyApp extends StatelessWidget {
             return BannerProvider();
           },
         ),
-        ChangeNotifierProvider(
-          create: (_) => BroadcastProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => BroadcastProvider()),
         ChangeNotifierProvider(
           create: (_) {
             print("✅ [MyApp] Creating GetAllRoomProvider");
@@ -210,7 +228,7 @@ class MyApp extends StatelessWidget {
             return SeatProvider();
           },
         ),
-         ChangeNotifierProvider(
+        ChangeNotifierProvider(
           create: (_) {
             print("✅ [MyApp] Creating BackpackProvider");
             return BackpackProvider();
@@ -246,7 +264,7 @@ class MyApp extends StatelessWidget {
             return GiftProvider();
           },
         ),
-         ChangeNotifierProvider(
+        ChangeNotifierProvider(
           create: (_) {
             print("✅ [MyApp] Creating MomentProvider");
             return MomentProvider();
@@ -302,14 +320,14 @@ class MyApp extends StatelessWidget {
             return RankingProvider();
           },
         ),
-         //RankingProvider
+        //RankingProvider
         ChangeNotifierProvider(
           create: (_) {
             print("✅ [MyApp] Creating CpProvider");
             return CpProvider();
           },
         ),
-          //RankingProvider
+        //RankingProvider
         ChangeNotifierProvider(
           create: (_) {
             print("✅ [MyApp] Creating CpRoggleProvider");
@@ -351,7 +369,8 @@ class MyApp extends StatelessWidget {
                     child ?? const SplashScreen(),
                     Consumer<BroadcastProvider>(
                       builder: (context, broadcast, _) {
-                        if (!broadcast.isBroadcastVisible) return const SizedBox.shrink();
+                        if (!broadcast.isBroadcastVisible)
+                          return const SizedBox.shrink();
                         // Broadcast banner
                         return Positioned(
                           top: 90,
@@ -362,74 +381,98 @@ class MyApp extends StatelessWidget {
                             child: GestureDetector(
                               onTap: () => broadcast.hideBroadcast(),
                               child: SizedBox(
-                                height: 80, // Fixed height for the banner
+                                height: 72,
                                 child: Stack(
                                   alignment: Alignment.center,
                                   children: [
                                     // Background
                                     Positioned.fill(
                                       child: Image.asset(
-                                        'assets/images/broadcasting_image.png',
+                                        'assets/images/lucky_main_patti.png',
                                         fit: BoxFit.fill,
                                       ),
                                     ),
 
-                                    // Avatar (Left) - Adjusted Position
+                                    // Left frame + avatar
                                     Positioned(
-                                      left: 40,
-                                      top: 16,
-                                      bottom: 16,
-                                      child: AspectRatio(
-                                        aspectRatio: 1,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                                color: Colors.amberAccent,
-                                                width: 1.5),
-                                          ),
-                                          child: ClipOval(
-                                            child: broadcast
-                                                    .senderProfileUrl.isNotEmpty
-                                                ? CachedNetworkImage(
-                                                    imageUrl: broadcast
-                                                        .senderProfileUrl,
-                                                    fit: BoxFit.cover,
-                                                    placeholder: (context,
-                                                            url) =>
-                                                        const Center(
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    )),
-                                                    errorWidget: (_, __, ___) =>
-                                                        Container(
-                                                      color: Colors.grey,
-                                                      child: const Icon(
-                                                          Icons.person,
-                                                          color: Colors.white),
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    color: Colors.grey,
-                                                    child: const Icon(
-                                                        Icons.person,
-                                                        color: Colors.white),
-                                                  ),
-                                          ),
+                                      left: 8,
+                                      top: 10,
+                                      child: SizedBox(
+                                        width: 50,
+                                        height: 50,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Image.asset(
+                                              'assets/images/lucky_patti_left.png',
+                                              fit: BoxFit.contain,
+                                            ),
+                                            Positioned.fill(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  8.0,
+                                                ),
+                                                child: ClipOval(
+                                                  child:
+                                                      broadcast
+                                                          .senderProfileUrl
+                                                          .isNotEmpty
+                                                      ? CachedNetworkImage(
+                                                          imageUrl: broadcast
+                                                              .senderProfileUrl,
+                                                          fit: BoxFit.cover,
+                                                          placeholder:
+                                                              (
+                                                                context,
+                                                                url,
+                                                              ) => const Center(
+                                                                child:
+                                                                    CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2,
+                                                                    ),
+                                                              ),
+                                                          errorWidget:
+                                                              (
+                                                                _,
+                                                                __,
+                                                                ___,
+                                                              ) => Container(
+                                                                color:
+                                                                    Colors.grey,
+                                                                child: const Icon(
+                                                                  Icons.person,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                              ),
+                                                        )
+                                                      : Container(
+                                                          color: Colors.grey,
+                                                          child: const Icon(
+                                                            Icons.person,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
 
-                                    // Middle Text (Centered Horizontal)
+                                    // Center text
                                     Positioned(
-                                      left: 85,
-                                      right: 110, // More space on right for Gift + Count
+                                      left: 78,
+                                      right: 78,
                                       top: 0,
                                       bottom: 0,
                                       child: Builder(
                                         builder: (context) {
-                                          debugPrint("🎨 [MainBanner] Render: Sen='${broadcast.senderName}', Rec='${broadcast.receiverName}'");
+                                          debugPrint(
+                                            "🎨 [MainBanner] Render: Sen='${broadcast.senderName}', Gift='${broadcast.giftName}', Coins='${broadcast.giftAmount}'",
+                                          );
                                           return Center(
                                             child: RichText(
                                               maxLines: 1,
@@ -440,31 +483,46 @@ class MyApp extends StatelessWidget {
                                                   fontSize: 14,
                                                   shadows: [
                                                     Shadow(
-                                                        color: Colors.black,
-                                                        blurRadius: 2,
-                                                        offset: Offset(1, 1))
+                                                      color: Colors.black,
+                                                      blurRadius: 2,
+                                                      offset: Offset(1, 1),
+                                                    ),
                                                   ],
                                                 ),
                                                 children: [
                                                   TextSpan(
-                                                    text: "${broadcast.senderName} ",
+                                                    text:
+                                                        "${broadcast.senderName} ",
                                                     style: TextStyle(
-                                                      color: Color(0xFFFFD700), // Gold
-                                                      fontWeight: FontWeight.w900,
+                                                      color: Color(0xFFFFD700),
+                                                      fontWeight:
+                                                          FontWeight.w900,
                                                     ),
                                                   ),
                                                   TextSpan(
-                                                    text: "Send ",
+                                                    text: "send ",
                                                     style: TextStyle(
                                                       color: Colors.white,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
                                                   ),
                                                   TextSpan(
-                                                    text: (broadcast.receiverName.isEmpty) ? "User" : broadcast.receiverName,
+                                                    text:
+                                                        "${broadcast.giftName} ",
                                                     style: TextStyle(
-                                                      color: Color(0xFFFFD700), // Gold
-                                                      fontWeight: FontWeight.w900,
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  TextSpan(
+                                                    text:
+                                                        "${broadcast.giftAmount.toStringAsFixed(0)} coins",
+                                                    style: TextStyle(
+                                                      color: Color(0xFFFFD700),
+                                                      fontWeight:
+                                                          FontWeight.w900,
                                                     ),
                                                   ),
                                                 ],
@@ -475,51 +533,41 @@ class MyApp extends StatelessWidget {
                                       ),
                                     ),
 
-                                    // Gift Image & Count (Right Side)
+                                    // Right frame + count
                                     Positioned(
-                                      right: 30,
-                                      top: 0,
-                                      bottom: 0,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          if (broadcast.giftImage.isNotEmpty)
-                                            Container(
-                                              decoration: BoxDecoration(
-                                                borderRadius: BorderRadius.circular(8),
-                                                boxShadow: [
-                                                   BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2,2))
-                                                ]
-                                              ),
-                                              child: ClipRRect(
-                                                borderRadius: BorderRadius.circular(6),
-                                                child: CachedNetworkImage(
-                                                  imageUrl: broadcast.giftImage,
-                                                  width: 42,
-                                                  height: 42,
-                                                  fit: BoxFit.cover,
+                                      right: 8,
+                                      top: 8,
+                                      bottom: 8,
+                                      child: AspectRatio(
+                                        aspectRatio: 1,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            Image.asset(
+                                              'assets/images/lucky_patti_right.png',
+                                              fit: BoxFit.contain,
+                                            ),
+                                            Positioned(
+                                              bottom: 6,
+                                              right: 6,
+                                              child: Text(
+                                                "x${broadcast.giftCount}",
+                                                style: TextStyle(
+                                                  color: Colors.yellowAccent,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w900,
+                                                  shadows: [
+                                                    Shadow(
+                                                      color: Colors.black,
+                                                      offset: Offset(1, 1),
+                                                      blurRadius: 3,
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
                                             ),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            "x${broadcast.giftCount}",
-                                            style: TextStyle(
-                                              color: Colors.yellowAccent,
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w900,
-                                              fontStyle: FontStyle.italic,
-                                              shadows: [
-                                                Shadow(
-                                                  color: Colors.black,
-                                                  offset: Offset(1, 1),
-                                                  blurRadius: 3,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -549,7 +597,9 @@ class FirebaseInitErrorApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayError = error.length > 400 ? '${error.substring(0, 400)}...' : error;
+    final displayError = error.length > 400
+        ? '${error.substring(0, 400)}...'
+        : error;
     return MaterialApp(
       home: Scaffold(
         backgroundColor: Colors.white,

@@ -25,7 +25,7 @@ class RoomAssets {
 
   factory RoomAssets.defaults() => const RoomAssets(
         background: 'assets/images/wel.jpeg',
-      seatIcon: 'assets/icons/room_seats.svg',
+      seatIcon: 'assets/icons/room_seat.svg',
         adminSeatIcon: 'assets/images/room_1.png',
         ownerSeatIcon: 'assets/images/room_2.png',
         lockBadge: 'assets/images/ic_edit.png',
