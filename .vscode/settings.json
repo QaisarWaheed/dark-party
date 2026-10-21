@@ -1,3 +1,12 @@
 {
-    "cmake.sourceDirectory": "/home/nuke-bugs/shaheen_start_app-main (2)/shaheen_start_app-main/linux"
+  "cmake.sourceDirectory": "/home/nuke-bugs/shaheen_start_app-main (2)/shaheen_start_app-main/linux",
+  "task.allowAutomaticTasks": true,
+  "debug.openDebug": "neverOpen",
+  "terminal.integrated.inheritEnv": false,
+  "tasks": {
+    "label": "lint on open",
+    "type": "shell",
+    "command": "npm run lint",
+    "runOn": "folderOpen"
+  }
 }
